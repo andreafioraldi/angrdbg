@@ -1,5 +1,5 @@
 from memory import SimSymbolicDbgMemory
-from context import load_project, get_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
+from context import load_project, get_memory_type, set_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
 from brk import get_linux_brk
 from got_builder import build_mixed_got
 
@@ -16,7 +16,7 @@ def StateShot():
     
     project = load_project()
     
-    mem = SimSymbolicIdaMemory(memory_backer=project.loader.memory, permissions_backer=None, memory_id="mem")
+    mem = SimSymbolicDbgMemory(memory_backer=project.loader.memory, permissions_backer=None, memory_id="mem")
     
     state = project.factory.blank_state(plugins={"memory": mem})
     
@@ -31,7 +31,7 @@ def StateShot():
     if project.simos.name == "Linux":
         ## inject code to get brk if we are on linux x86/x86_64
         if project.arch.name in ("AMD64", "X86"):
-            state.posix.set_brk(get_linux_brk())
+            state.posix.set_brk(get_linux_brk(project.arch.bits))
         
         if get_memory_type() == SIMPROCS_FROM_CLE:
             set_memory_type(ONLY_GOT_FROM_CLE)

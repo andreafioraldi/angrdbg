@@ -113,7 +113,7 @@ class DbgPage(paged_memory.BasePage):
 
 
 
-class SimIdaMemory(object):
+class SimDbgMemory(object):
     """
     Represents paged memory.
     """
@@ -163,7 +163,7 @@ class SimIdaMemory(object):
 
         new_pages = dict(self._pages)
         self._cowed = set()
-        m = SimIdaMemory(memory_backer=self._memory_backer,
+        m = SimDbgMemory(memory_backer=self._memory_backer,
                            permissions_backer=self._permissions_backer,
                            pages=new_pages,
                            initialized=set(self._initialized),
@@ -349,11 +349,11 @@ class SimIdaMemory(object):
         try:
             if seg is not None:
                 perms = 0
-                if seg.perm & SEG_PROT_X:
+                if seg.perms & SEG_PROT_X:
                     perms += DbgPage.PROT_EXEC
-                if seg.perm & SEG_PROT_W:
+                if seg.perms & SEG_PROT_W:
                     perms += DbgPage.PROT_WRITE
-                if seg.perm & SEG_PROT_R:
+                if seg.perms & SEG_PROT_R:
                     perms += DbgPage.PROT_READ
                 new_page.permissions = claripy.BVV(perms, 3)
                 #print "permissions setted %x  %d" % (new_page_addr, perms)

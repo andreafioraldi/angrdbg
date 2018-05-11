@@ -12,10 +12,10 @@ def get_dbg_brk_linux64():
     
     code = '\x0f\x05' #syscall
 
-    rax = idc.get_reg("rax")
-    rdi = idc.get_reg("rdi")
-    rip = idc.get_reg("rip")
-    efl = idc.get_reg("efl")
+    rax = debugger.get_reg("rax")
+    rdi = debugger.get_reg("rdi")
+    rip = debugger.get_reg("rip")
+    efl = debugger.get_reg("efl")
     
     debugger.set_reg("rax", 12) # sys_brk
     debugger.set_reg("rdi", 0)
@@ -56,10 +56,10 @@ def get_dbg_brk_linux32():
     
     code = '\xcd\x80' #int 0x80
 
-    eax = idc.get_reg("eax")
-    ebp = idc.get_reg("ebp")
-    eip = idc.get_reg("eip")
-    efl = idc.get_reg("efl")
+    eax = debugger.get_reg("eax")
+    ebp = debugger.get_reg("ebp")
+    eip = debugger.get_reg("eip")
+    efl = debugger.get_reg("efl")
     
     debugger.set_reg("eax", 45) # sys_brk
     debugger.set_reg("ebx", 0)
@@ -90,8 +90,8 @@ def get_dbg_brk_linux32():
     return brk_res
 
 
-def get_linux_brk():
-    if idaapi.get_inf_structure().is_64bit():
+def get_linux_brk(bits):
+    if bits == 64:
         curr_brk = get_dbg_brk_linux64()
         #print "get_linux_brk: current brk = 0x%x" % curr_brk
         return claripy.BVV(curr_brk, 64)

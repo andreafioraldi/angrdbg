@@ -32,7 +32,7 @@ def get_memory_type():
     global memory_type
     return memory_type
 
-def register_debugger():
+def register_debugger(dbginstance):
     global debugger
     if not isinstance(dbginstance, Debugger):
         raise TypeError("dbginstance must be an instance of abstract_debugger.Debugger")

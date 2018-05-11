@@ -74,7 +74,7 @@ class Debugger(object):
     def wait_ready(self):
         raise NotImplementedError()
     
-    def resfresh_memory(self):
+    def refresh_memory(self):
         raise NotImplementedError()
     
     #-------------------------------------
@@ -85,7 +85,7 @@ class Debugger(object):
         raise NotImplementedError()
 
     #-------------------------------------
-    def resolve_name(self, name): #return None on fail
+    def resolve_name(self, addr): #return None on fail
         raise NotImplementedError()
 
 
