@@ -18,14 +18,14 @@ def build_mixed_got(proj, state):
     
     got_start = got_seg.start
     
+    got_start += 3*entry_len # skip first 3 entries
+    
     '''
     print "## angr got - before ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in xrange(got_start, got_seg.end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
-    
-    got_start += 3*entry_len # skip first 3 entries
     
     for a in xrange(got_start, got_seg.end, entry_len):
         state_val = state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved)
@@ -43,7 +43,7 @@ def build_mixed_got(proj, state):
                         
     '''
     print "## angr got - final ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in xrange(got_start, got_seg.end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
@@ -69,14 +69,14 @@ def build_bind_now_got(proj, state):
     
     got_start = got_seg.start
     
+    got_start += 3*entry_len # skip first 3 entries
+    
     '''
     print "## angr got - before ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in xrange(got_start, got_seg.end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
-    
-    got_start += 3*entry_len # skip first 3 entries
     
     for a in xrange(got_start, got_seg.end, entry_len):
         state_val = state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved)
@@ -93,7 +93,7 @@ def build_bind_now_got(proj, state):
                     
     '''
     print "## angr got - final ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in xrange(got_start, got_seg.end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
