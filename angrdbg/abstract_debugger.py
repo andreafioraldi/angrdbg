@@ -16,6 +16,13 @@ class Debugger(object):
         pass
     
     #-------------------------------------
+    def before_stateshot(self):
+        pass
+        
+    def after_stateshot(self, state):
+        pass
+    
+    #-------------------------------------
     def is_active(self):
         raise NotImplementedError()
     

@@ -16,6 +16,8 @@ def StateShot():
     
     project = load_project()
     
+    debugger.before_stateshot()
+    
     mem = SimSymbolicDbgMemory(memory_backer=project.loader.memory, permissions_backer=None, memory_id="mem")
     
     state = project.factory.blank_state(plugins={"memory": mem})
@@ -43,6 +45,8 @@ def StateShot():
             # angr must not execute loader code so all symbols must be resolved
             state = build_bind_now_got(project, state)
             set_memory_type(GET_ALL_DISCARD_CLE)
+    
+    debugger.after_stateshot(state)
     
     return state
 
