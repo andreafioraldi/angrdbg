@@ -21,6 +21,8 @@ from rpyc.utils.authenticators import SSLAuthenticator
 from rpyc.lib import setup_logger
 from rpyc.core import SlaveService
 
+BANNER = "[angrdbg server v1.0]"
+
 #######################
 import angr
 import claripy
@@ -90,7 +92,7 @@ class AngrDbgServer(cli.Application):
             self.port = default_port
 
         setup_logger(self.quiet, self.logfile)
-
+        
         thread.start_new_thread(self._serve_oneshot, tuple())
         IPython.embed(
             banner1="", 
@@ -102,14 +104,14 @@ class AngrDbgServer(cli.Application):
         t = OneShotServer(SlaveService, hostname = self.host, port = self.port,
             reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
             registrar = self.registrar, auto_register = self.auto_register)
-        sys.stdout.write("[angrdbg server v1.0] starting at %s %s\n" % (t.host, t.port))
+        sys.stdout.write(BANNER + " starting at %s %s\n" % (t.host, t.port))
         sys.stdout.flush()
         t.start()
-        sys.stdout.write("\n[angrdbg server v1.0] client disconnected.\nexiting...\n")
+        sys.stdout.write("\n" + BANNER + " client disconnected.\nexiting...\n")
         os._exit(0)
 
 
-if __name__ == "__main__":
+def main():
     AngrDbgServer.run()
 
 

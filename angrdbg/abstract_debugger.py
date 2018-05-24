@@ -12,6 +12,8 @@ class Segment(object):
 
 
 class Debugger(object):
+    name = "<abstract>"
+    
     def __init__(self):
         pass
     
@@ -27,7 +29,7 @@ class Debugger(object):
         raise NotImplementedError()
     
     #-------------------------------------
-    def input_file_path(self):
+    def input_file(self): #the file will be closed after a read
         raise NotImplementedError()
     
     def image_base(self):

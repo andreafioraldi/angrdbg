@@ -9,7 +9,7 @@ def load_project():
     global project
     if project == None:
         print " >> creating angr project..."
-        project = angr.Project(debugger.input_file_path(),
+        project = angr.Project(debugger.input_file(),
                                 main_opts={ 'custom_base_addr': debugger.image_base() },
                                 load_options={ "auto_load_libs": False })
         print " >> done."
@@ -34,8 +34,6 @@ def get_memory_type():
 
 def register_debugger(dbginstance):
     global debugger
-    if not isinstance(dbginstance, Debugger):
-        raise TypeError("dbginstance must be an instance of abstract_debugger.Debugger")
     debugger = dbginstance
 
 def get_debugger():

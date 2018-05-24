@@ -277,6 +277,7 @@ class SimDbgMemory(object):
         project = load_project()
         debugger = get_debugger()
         
+        #TODO handle simbolic address
         seg = debugger.seg_by_addr(new_page_addr)
         
         #print "LOADING 0x%x" % new_page_addr

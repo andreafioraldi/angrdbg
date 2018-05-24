@@ -3,7 +3,6 @@ from context import load_project, get_memory_type, set_memory_type, get_debugger
 from brk import get_linux_brk
 from got_builder import build_mixed_got
 
-import angr
 import claripy
 
 def StateShot():
@@ -29,7 +28,7 @@ def StateShot():
             setattr(state.regs, reg, debugger.get_reg(reg))
         except:
             pass
-        
+    
     if project.simos.name == "Linux":
         ## inject code to get brk if we are on linux x86/x86_64
         if project.arch.name in ("AMD64", "X86"):
