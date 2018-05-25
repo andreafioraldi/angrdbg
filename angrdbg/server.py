@@ -11,9 +11,11 @@ usage:
 import sys
 import os
 import rpyc
-import thread
+import threading
+import Queue
+
 from plumbum import cli
-from rpyc.utils.server import ThreadedServer, ForkingServer, OneShotServer
+from rpyc.utils.server import Server
 from rpyc.utils.classic import DEFAULT_SERVER_PORT, DEFAULT_SERVER_SSL_PORT
 from rpyc.utils.registry import REGISTRY_PORT
 from rpyc.utils.registry import UDPRegistryClient, TCPRegistryClient
@@ -32,10 +34,32 @@ import IPython
 #from angrdbg import *
 #######################
 
-_callback = None
-def rcc(c):
-    global _callback
-    _callback = c
+class LimitedServer(Server):
+    
+    def __init__(self, service, threads_queue, num_conns=1, **kwargs):
+        assert num_conns > 0
+        self.num_conns = num_conns
+        self.threads = []
+        self.threads_queue = threads_queue
+        Server.__init__(self, service, **kwargs)
+    
+    def _accept_method(self, sock):
+        self.num_conns -= 1
+        
+        t = threading.Thread(target=self._authenticate_and_serve_client, args=[sock])
+        t.start()
+        
+        self.threads.append(t)
+        self.threads_queue.put(t)
+        
+        if self.num_conns == 0:
+            self.listener.close()
+            self.join()
+
+    def join(self):
+        for t in self.threads:
+            t.join()
+
 
 class AngrDbgServer(cli.Application):
     port = cli.SwitchAttr(["-p", "--port"], cli.Range(0, 65535), default = None,
@@ -93,20 +117,32 @@ class AngrDbgServer(cli.Application):
 
         setup_logger(self.quiet, self.logfile)
         
-        thread.start_new_thread(self._serve_oneshot, tuple())
-        IPython.embed(
-            banner1="", 
-            banner2="",#"tip: call serve_all() on the client to have a full working shell here.",
-            exit_msg=""
-        )
-
-    def _serve_oneshot(self):
-        t = OneShotServer(SlaveService, hostname = self.host, port = self.port,
-            reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
-            registrar = self.registrar, auto_register = self.auto_register)
-        sys.stdout.write(BANNER + " starting at %s %s\n" % (t.host, t.port))
+        sys.stdout.write(BANNER + " starting at %s %s\n" % (self.host, self.port))
         sys.stdout.flush()
+        
+        syncq = Queue.Queue(2)
+        t = threading.Thread(target=self._serve, args=[syncq])
         t.start()
+        
+        #wait for 2 conesctions
+        syncq.get(True)
+        syncq.get(True)
+        
+        IPython.embed(
+            banner1=BANNER + " client connected\n", 
+            banner2="",#"tip: call serve_all() on the client to have a full working shell here.",
+            exit_msg=BANNER + " shell closed.\nexiting...\n"
+        )
+        
+        os._exit(0)
+
+    def _serve(self, syncq):
+        t = LimitedServer(SlaveService, syncq, hostname = self.host, port = self.port,
+            reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
+            registrar = self.registrar, auto_register = self.auto_register,
+            num_conns = 2)
+        t.start()
+        
         sys.stdout.write("\n" + BANNER + " client disconnected.\nexiting...\n")
         os._exit(0)
 
@@ -119,7 +155,8 @@ def main():
 import rpyc
 import thread
 
-conn = rpyc.classic.connect("localhost")
-thread.start_new_thread(conn.serve_all, tuple())
+conn1 = rpyc.classic.connect("localhost")
+conn2 = rpyc.classic.connect("localhost")
+thread.start_new_thread(conn2.serve_all, tuple())
 
 '''
