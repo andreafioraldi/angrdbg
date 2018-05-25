@@ -12,6 +12,7 @@ import sys
 import os
 import rpyc
 import threading
+import signal
 import Queue
 
 from plumbum import cli
@@ -34,32 +35,71 @@ import IPython
 #from angrdbg import *
 #######################
 
-class LimitedServer(Server):
+
+class LimitedServer(Server): # n1 threaded n2 forked
     
-    def __init__(self, service, threads_queue, num_conns=1, **kwargs):
-        assert num_conns > 0
-        self.num_conns = num_conns
-        self.threads = []
-        self.threads_queue = threads_queue
+    def __init__(self, service, sync_queue, **kwargs):
+        self.num_conns = 2
+        self.thread = None
+        self.proc = None
+        self.sync_queue = sync_queue
         Server.__init__(self, service, **kwargs)
+    
+    @classmethod
+    def _handle_sigchld(cls, signum, unused):
+        try:
+            while True:
+                pid, dummy = os.waitpid(-1, os.WNOHANG)
+                if pid <= 0:
+                    break
+        except OSError:
+            pass
+        # re-register signal handler (see man signal(2), under Portability)
+        signal.signal(signal.SIGCHLD, cls._handle_sigchld)
     
     def _accept_method(self, sock):
         self.num_conns -= 1
         
-        t = threading.Thread(target=self._authenticate_and_serve_client, args=[sock])
-        t.start()
+        if self.num_conns == 1:
+            t = threading.Thread(target=self._authenticate_and_serve_client, args=[sock])
+            t.start()
+            
+            self.thread = t
+        else:
+            pid = os.fork()
+            if pid == 0:
+                # child
+                try:
+                    self.logger.debug("child process created")
+                    #76: call signal.siginterrupt(False) in forked child
+                    signal.siginterrupt(signal.SIGCHLD, False)
+                    self.listener.close()
+                    self.clients.clear()
+                    self._authenticate_and_serve_client(sock)
+                except:
+                    self.logger.exception("child process terminated abnormally")
+                else:
+                    self.logger.debug("child process terminated")
+                finally:
+                    self.logger.debug("child terminated")
+                    os._exit(0)
+            else:
+                # parent
+                self.proc = pid
+                sock.close()
         
-        self.threads.append(t)
-        self.threads_queue.put(t)
+        self.sync_queue.put(None)
         
         if self.num_conns == 0:
             self.listener.close()
             self.join()
 
     def join(self):
-        for t in self.threads:
-            t.join()
-
+        self.thread.join()
+        try:
+            pid, dummy = os.waitpid(self.proc, os.WNOHANG)
+        except OSError:
+            pass
 
 class AngrDbgServer(cli.Application):
     port = cli.SwitchAttr(["-p", "--port"], cli.Range(0, 65535), default = None,
@@ -139,8 +179,7 @@ class AngrDbgServer(cli.Application):
     def _serve(self, syncq):
         t = LimitedServer(SlaveService, syncq, hostname = self.host, port = self.port,
             reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
-            registrar = self.registrar, auto_register = self.auto_register,
-            num_conns = 2)
+            registrar = self.registrar, auto_register = self.auto_register)
         t.start()
         
         sys.stdout.write("\n" + BANNER + " client disconnected.\nexiting...\n")
