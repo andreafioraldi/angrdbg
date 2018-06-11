@@ -17,7 +17,7 @@ l = logging.getLogger("angrdbg.mem.page")
 from angr.storage import paged_memory
 import claripy
 
-from context import load_project, get_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, TEXT_GOT_FROM_CLE
+from context import load_project, get_memory_type, get_debugger, USE_CLE_MEMORY
 from abstract_debugger import SEG_PROT_R, SEG_PROT_W, SEG_PROT_X
 
 class DbgPage(paged_memory.BasePage):
@@ -271,18 +271,22 @@ class SimDbgMemory(object):
         if self.state is not None:
             self.state.scratch.push_priv(True)
         
-        if self._memory_backer is None:
-            pass
+        #if self._memory_backer is None:
+        #    pass
         
         project = load_project()
         debugger = get_debugger()
         
-        #TODO handle simbolic address
-        seg = debugger.seg_by_addr(new_page_addr)
+        #TODO handle simbolic address properly
+        seg = None
+        try:
+            seg = debugger.seg_by_addr(new_page_addr)
+        except:
+            pass
+                
+        #print "LOADING 0x%x - 0x%x | 0x%x - 0x%x" % (new_page_addr, new_page_addr+self._page_size, seg.start, seg.end)
         
-        #print "LOADING 0x%x" % new_page_addr
-        
-        if get_memory_type() == TEXT_GOT_FROM_CLE or (get_memory_type() == ONLY_GOT_FROM_CLE and debugger.seg_is_got(seg)): #yes this is weird
+        if get_memory_type() == USE_CLE_MEMORY: #yes this is weird
         
             if isinstance(self._memory_backer, cle.Clemory):
                 # first, find the right clemory backer

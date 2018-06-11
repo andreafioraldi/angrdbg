@@ -36,13 +36,13 @@ import IPython
 #######################
 
 
-class LimitedServer(Server): # n1 threaded n2 forked
+class WeirdServer(Server): # n1 threaded n2 forked
     
-    def __init__(self, service, sync_queue, **kwargs):
+    def __init__(self, service, done_event, **kwargs):
         self.num_conns = 2
         self.thread = None
         self.proc = None
-        self.sync_queue = sync_queue
+        self.done_event = done_event
         Server.__init__(self, service, **kwargs)
     
     @classmethod
@@ -88,18 +88,19 @@ class LimitedServer(Server): # n1 threaded n2 forked
                 self.proc = pid
                 sock.close()
         
-        self.sync_queue.put(None)
-        
         if self.num_conns == 0:
+            self.done_event.set()
             self.listener.close()
             self.join()
 
     def join(self):
         self.thread.join()
+        print "PID:",self.proc
         try:
-            pid, dummy = os.waitpid(self.proc, os.WNOHANG)
-        except OSError:
-            pass
+            pid, dummy = os.waitpid(self.proc, 0)#os.WNOHANG)
+        except OSError as ee:
+            print ee
+
 
 class AngrDbgServer(cli.Application):
     port = cli.SwitchAttr(["-p", "--port"], cli.Range(0, 65535), default = None,
@@ -160,13 +161,12 @@ class AngrDbgServer(cli.Application):
         sys.stdout.write(BANNER + " starting at %s %s\n" % (self.host, self.port))
         sys.stdout.flush()
         
-        syncq = Queue.Queue(2)
-        t = threading.Thread(target=self._serve, args=[syncq])
+        done_event = threading.Event()
+        t = threading.Thread(target=self._serve, args=[done_event])
         t.start()
         
-        #wait for 2 conesctions
-        syncq.get(True)
-        syncq.get(True)
+        #wait for 2 connections
+        done_event.wait()
         
         IPython.embed(
             banner1=BANNER + " client connected\n", 
@@ -177,7 +177,7 @@ class AngrDbgServer(cli.Application):
         os._exit(0)
 
     def _serve(self, syncq):
-        t = LimitedServer(SlaveService, syncq, hostname = self.host, port = self.port,
+        t = WeirdServer(SlaveService, syncq, hostname = self.host, port = self.port,
             reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
             registrar = self.registrar, auto_register = self.auto_register)
         t.start()

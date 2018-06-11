@@ -1,7 +1,7 @@
 from memory import SimSymbolicDbgMemory
 from context import load_project, get_memory_type, set_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
 from brk import get_linux_brk
-from got_builder import build_mixed_got
+from got_builder import *
 
 import claripy
 
@@ -35,15 +35,15 @@ def StateShot():
             state.posix.set_brk(get_linux_brk(project.arch.bits))
         
         if get_memory_type() == SIMPROCS_FROM_CLE:
-            set_memory_type(ONLY_GOT_FROM_CLE)
             # insert simprocs when possible or resolve the symbol
             state = build_mixed_got(project, state)
-            set_memory_type(SIMPROCS_FROM_CLE)
+        elif get_memory_type() == ONLY_GOT_FROM_CLE:
+            # load the entire got from cle with stubs
+            state = build_cle_got(project, state)
         elif get_memory_type() == GET_ALL_DISCARD_CLE:
-            set_memory_type(ONLY_GOT_FROM_CLE)
             # angr must not execute loader code so all symbols must be resolved
             state = build_bind_now_got(project, state)
-            set_memory_type(GET_ALL_DISCARD_CLE)
+
     
     debugger.after_stateshot(state)
     
