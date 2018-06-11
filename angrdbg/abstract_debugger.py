@@ -92,18 +92,16 @@ class Debugger(object):
 
     def seg_by_addr(self, name):
         raise NotImplementedError()
+
+    def get_got(self): #return tuple(start_addr, end_addr)
+        raise NotImplementedError()
     
-    def seg_is_got(self, seg):
+    def get_plt(self): #return tuple(start_addr, end_addr)
         raise NotImplementedError()
     
     #-------------------------------------
     def resolve_name(self, addr): #return None on fail
         raise NotImplementedError()
-
-
-
-
-
 
 
 

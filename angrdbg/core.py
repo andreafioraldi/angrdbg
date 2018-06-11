@@ -66,7 +66,7 @@ class StateManager(object):
             if size == None:
                 size = project.arch.registers[key][1]
             size *= 8
-            s = claripy.BVS("idangr_reg_" + str(key), size)
+            s = claripy.BVS("angrdbg_reg_" + str(key), size)
             setattr(self.state.regs, key, s)
             self.symbolics[key] = (s, size)
         elif type(key) == int or type(key) == long:
@@ -74,7 +74,7 @@ class StateManager(object):
                 size = project.arch.bits
             else:
                 size *= 8
-            s = claripy.BVS("idangr_mem_" + hex(key), size)
+            s = claripy.BVS("angrdbg_mem_" + hex(key), size)
             self.state.memory.store(key, s)
             self.symbolics[key] = (s, size)
         elif type(key) == claripy.ast.bv.BV:
