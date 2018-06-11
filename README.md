@@ -36,3 +36,6 @@ A wrapper around angr to simplify the symbolic values creation and to write the 
 
 note: memory values are the same that are returned by `state.mem[addr]`
 
+## Frontends
++ GDB -> [angrgdb](https://github.com/andreafioraldi/angrgdb)
++ IDA Pro debugger -> [IDAngr](https://github.com/andreafioraldi/IDAngr)
