@@ -95,7 +95,7 @@ class WeirdServer(Server): # n1 threaded n2 forked
 
     def join(self):
         self.thread.join()
-        print "PID:",self.proc
+        
         try:
             pid, dummy = os.waitpid(self.proc, 0)#os.WNOHANG)
         except OSError as ee:
@@ -162,7 +162,11 @@ class AngrDbgServer(cli.Application):
         sys.stdout.flush()
         
         done_event = threading.Event()
-        t = threading.Thread(target=self._serve, args=[done_event])
+        srv = WeirdServer(SlaveService, done_event, hostname = self.host, port = self.port,
+            reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
+            registrar = self.registrar, auto_register = self.auto_register)
+        
+        t = threading.Thread(target=self._serve, args=[srv])
         t.start()
         
         #wait for 2 connections
@@ -174,13 +178,11 @@ class AngrDbgServer(cli.Application):
             exit_msg=BANNER + " shell closed.\nexiting...\n"
         )
         
+        os.kill(srv.proc, signal.SIGKILL)
         os._exit(0)
 
-    def _serve(self, syncq):
-        t = WeirdServer(SlaveService, syncq, hostname = self.host, port = self.port,
-            reuse_addr = True, ipv6 = self.ipv6, authenticator = self.authenticator,
-            registrar = self.registrar, auto_register = self.auto_register)
-        t.start()
+    def _serve(self, srv):
+        srv.start()
         
         sys.stdout.write("\n" + BANNER + " client disconnected.\nexiting...\n")
         os._exit(0)
