@@ -57,6 +57,7 @@ def get_dbg_brk_linux32():
     code = '\xcd\x80' #int 0x80
 
     eax = debugger.get_reg("eax")
+    ebx = debugger.get_reg("ebx")
     ebp = debugger.get_reg("ebp")
     eip = debugger.get_reg("eip")
     efl = debugger.get_reg("efl")
