@@ -60,7 +60,7 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
     # Lifecycle management
     #
 
-    def copy(self):
+    def copy(self, memo=None):
         """
         Return a copy of the SimMemory.
         """
