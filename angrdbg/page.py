@@ -20,21 +20,26 @@ import claripy
 from context import load_project, get_memory_type, get_debugger, USE_CLE_MEMORY
 from abstract_debugger import SEG_PROT_R, SEG_PROT_W, SEG_PROT_X
 
+
 class DbgPage(paged_memory.BasePage):
 
     def __init__(self, *args, **kwargs):
         storage = kwargs.pop("storage", None)
         self._sinkhole = kwargs.pop("sinkhole", None)
-        
+
         super(DbgPage, self).__init__(*args, **kwargs)
-        self._storage = [ None ] * self._page_size if storage is None else storage
+        self._storage = [None] * \
+            self._page_size if storage is None else storage
         #print filter(lambda x: x != None, self._storage)
 
     def keys(self):
         if self._sinkhole is not None:
             return range(self._page_addr, self._page_addr + self._page_size)
         else:
-            return [ self._page_addr + i for i,v in enumerate(self._storage) if v is not None ]
+            return [
+                self._page_addr + i for i,
+                v in enumerate(
+                    self._storage) if v is not None]
 
     def replace_mo(self, state, old_mo, new_mo):
         if self._sinkhole is old_mo:
@@ -42,17 +47,17 @@ class DbgPage(paged_memory.BasePage):
         else:
             start, end = self._resolve_range(old_mo)
             for i in range(start, end):
-                if self._storage[i-self._page_addr] is old_mo:
-                    self._storage[i-self._page_addr] = new_mo
+                if self._storage[i - self._page_addr] is old_mo:
+                    self._storage[i - self._page_addr] = new_mo
         #print filter(lambda x: x != None, self._storage)
 
     def store_overwrite(self, state, new_mo, start, end):
         if start == self._page_addr and end == self._page_addr + self._page_size:
             self._sinkhole = new_mo
-            self._storage = [ None ] * self._page_size
+            self._storage = [None] * self._page_size
         else:
             for i in range(start, end):
-                self._storage[i-self._page_addr] = new_mo
+                self._storage[i - self._page_addr] = new_mo
         #print filter(lambda x: x != None, self._storage)
 
     def store_underwrite(self, state, new_mo, start, end):
@@ -60,8 +65,8 @@ class DbgPage(paged_memory.BasePage):
             self._sinkhole = new_mo
         else:
             for i in range(start, end):
-                if self._storage[i-self._page_addr] is None:
-                    self._storage[i-self._page_addr] = new_mo
+                if self._storage[i - self._page_addr] is None:
+                    self._storage[i - self._page_addr] = new_mo
         #print filter(lambda x: x != None, self._storage)
 
     def load_mo(self, state, page_idx):
@@ -70,12 +75,12 @@ class DbgPage(paged_memory.BasePage):
         :param page_idx: the index into the page
         :returns: a tuple of the object
         """
-        mo = self._storage[page_idx-self._page_addr]
+        mo = self._storage[page_idx - self._page_addr]
         #print filter(lambda x: x != None, self._storage)
-        if mo is None and hasattr(self, "from_dbg"):    
+        if mo is None and hasattr(self, "from_dbg"):
             byte_val = get_debugger().get_byte(page_idx)
             mo = SimMemoryObject(claripy.BVV(byte_val, 8), page_idx)
-            self._storage[page_idx-self._page_addr] = mo
+            self._storage[page_idx - self._page_addr] = mo
         return mo
 
     def load_slice(self, state, start, end):
@@ -85,12 +90,13 @@ class DbgPage(paged_memory.BasePage):
         :param end: the end address (non-inclusive)
         :returns: tuples of (starting_addr, memory_object)
         """
-        items = [ ]
+        items = []
         if start > self._page_addr + self._page_size or end < self._page_addr:
             l.warning("Calling load_slice on the wrong page.")
             return items
 
-        for addr in range(max(start, self._page_addr), min(end, self._page_addr + self._page_size)):
+        for addr in range(max(start, self._page_addr), min(
+                end, self._page_addr + self._page_size)):
             i = addr - self._page_addr
             mo = self._storage[i]
             if mo is None and hasattr(self, "from_dbg"):
@@ -103,27 +109,43 @@ class DbgPage(paged_memory.BasePage):
         return items
 
     def _copy_args(self):
-        return { 'storage': list(self._storage), 'sinkhole': self._sinkhole }
+        return {'storage': list(self._storage), 'sinkhole': self._sinkhole}
 
     def copy(self):
-        c = DbgPage(self._page_addr, self._page_size, permissions=self.permissions, **self._copy_args())
+        c = DbgPage(
+            self._page_addr,
+            self._page_size,
+            permissions=self.permissions,
+            **self._copy_args())
         if hasattr(self, "from_dbg"):
             setattr(c, "from_dbg", True)
         return c
-
 
 
 class SimDbgMemory(object):
     """
     Represents paged memory.
     """
-    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None, symbolic_addrs=None, check_permissions=False):
+
+    def __init__(
+            self,
+            memory_backer=None,
+            permissions_backer=None,
+            pages=None,
+            initialized=None,
+            name_mapping=None,
+            hash_mapping=None,
+            page_size=None,
+            symbolic_addrs=None,
+            check_permissions=False):
         self._cowed = set()
-        self._memory_backer = { } if memory_backer is None else memory_backer
-        self._permissions_backer = permissions_backer # saved for copying
-        self._executable_pages = False if permissions_backer is None else permissions_backer[0]
-        self._permission_map = { } if permissions_backer is None else permissions_backer[1]
-        self._pages = { } if pages is None else pages
+        self._memory_backer = {} if memory_backer is None else memory_backer
+        self._permissions_backer = permissions_backer  # saved for copying
+        self._executable_pages = False if permissions_backer is None else permissions_backer[
+            0]
+        self._permission_map = {
+        } if permissions_backer is None else permissions_backer[1]
+        self._pages = {} if pages is None else pages
         self._initialized = set() if initialized is None else initialized
         self._page_size = 0x1000 if page_size is None else page_size
         self._symbolic_addrs = dict() if symbolic_addrs is None else symbolic_addrs
@@ -132,8 +154,10 @@ class SimDbgMemory(object):
         self._check_perms = check_permissions
 
         # reverse mapping
-        self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
-        self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
+        self._name_mapping = cooldict.BranchingDict(
+        ) if name_mapping is None else name_mapping
+        self._hash_mapping = cooldict.BranchingDict(
+        ) if hash_mapping is None else hash_mapping
         self._updated_mappings = set()
 
     def __getstate__(self):
@@ -158,20 +182,22 @@ class SimDbgMemory(object):
         self.__dict__.update(s)
 
     def branch(self):
-        new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
-        new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
+        new_name_mapping = self._name_mapping.branch(
+        ) if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
+        new_hash_mapping = self._hash_mapping.branch(
+        ) if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
         new_pages = dict(self._pages)
         self._cowed = set()
         m = SimDbgMemory(memory_backer=self._memory_backer,
-                           permissions_backer=self._permissions_backer,
-                           pages=new_pages,
-                           initialized=set(self._initialized),
-                           page_size=self._page_size,
-                           name_mapping=new_name_mapping,
-                           hash_mapping=new_hash_mapping,
-                           symbolic_addrs=dict(self._symbolic_addrs),
-                           check_permissions=self._check_perms)
+                         permissions_backer=self._permissions_backer,
+                         pages=new_pages,
+                         initialized=set(self._initialized),
+                         page_size=self._page_size,
+                         name_mapping=new_name_mapping,
+                         hash_mapping=new_hash_mapping,
+                         symbolic_addrs=dict(self._symbolic_addrs),
+                         check_permissions=self._check_perms)
         m._preapproved_stack = self._preapproved_stack
         return m
 
@@ -196,7 +222,8 @@ class SimDbgMemory(object):
         #print "...",id(self._pages[page_num])
 
     def __delitem__(self, addr):
-        raise Exception("For performance reasons, deletion is not supported. Contact Yan if this needs to change.")
+        raise Exception(
+            "For performance reasons, deletion is not supported. Contact Yan if this needs to change.")
         # Specifically, the above is for two reasons:
         #
         #     1. deleting stuff out of memory doesn't make sense
@@ -223,7 +250,7 @@ class SimDbgMemory(object):
         :rtype: tuple
         """
 
-        result = [ ]
+        result = []
         end = addr + num_bytes
         for page_addr in self._containing_pages(addr, end):
             try:
@@ -256,7 +283,7 @@ class SimDbgMemory(object):
 
     def _create_page(self, page_num, permissions=None):
         return DbgPage(
-            page_num*self._page_size, self._page_size,
+            page_num * self._page_size, self._page_size,
             executable=self._executable_pages, permissions=permissions
         )
 
@@ -265,36 +292,38 @@ class SimDbgMemory(object):
             return False
         self._initialized.add(n)
 
-        new_page_addr = n*self._page_size
+        new_page_addr = n * self._page_size
         initialized = False
 
         if self.state is not None:
             self.state.scratch.push_priv(True)
-        
-        #if self._memory_backer is None:
+
+        # if self._memory_backer is None:
         #    pass
-        
+
         project = load_project()
         debugger = get_debugger()
-        
-        #TODO handle simbolic address properly
+
+        # TODO handle simbolic address properly
         seg = None
         try:
             seg = debugger.seg_by_addr(new_page_addr)
-        except:
+        except BaseException:
             pass
-                
+
         #print "LOADING 0x%x - 0x%x | 0x%x - 0x%x" % (new_page_addr, new_page_addr+self._page_size, seg.start, seg.end)
-        
-        if get_memory_type() == USE_CLE_MEMORY: #yes this is weird
-        
+
+        if get_memory_type() == USE_CLE_MEMORY:  # yes this is weird
+
             if isinstance(self._memory_backer, cle.Clemory):
                 # first, find the right clemory backer
-                for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else ((x, y) for x, _, y in self._memory_backer.stride_repr):
+                for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else (
+                        (x, y) for x, _, y in self._memory_backer.stride_repr):
                     start_backer = new_page_addr - addr
                     if isinstance(start_backer, BV):
                         continue
-                    if start_backer < 0 and abs(start_backer) >= self._page_size:
+                    if start_backer < 0 and abs(
+                            start_backer) >= self._page_size:
                         continue
                     if start_backer >= len(backer):
                         continue
@@ -309,16 +338,25 @@ class SimDbgMemory(object):
 
                     snip_start = max(0, start_backer)
                     write_start = max(new_page_addr, addr + snip_start)
-                    write_size = self._page_size - write_start%self._page_size
+                    write_size = self._page_size - write_start % self._page_size
 
                     if self.byte_width == 8:
-                        snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
-                        mo = SimMemoryObject(claripy.BVV(snip), write_start, byte_width=self.byte_width)
-                        self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                        snip = _ffi.buffer(backer)[
+                            snip_start:snip_start + write_size]
+                        mo = SimMemoryObject(
+                            claripy.BVV(snip), write_start, byte_width=self.byte_width)
+                        self._apply_object_to_page(
+                            n * self._page_size, mo, page=new_page)
                     else:
                         for i, byte in enumerate(backer):
-                            mo = SimMemoryObject(claripy.BVV(byte, self.byte_width), write_start + i, byte_width=self.byte_width)
-                            self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                            mo = SimMemoryObject(
+                                claripy.BVV(
+                                    byte,
+                                    self.byte_width),
+                                write_start + i,
+                                byte_width=self.byte_width)
+                            self._apply_object_to_page(
+                                n * self._page_size, mo, page=new_page)
 
                     new_page.permissions = claripy.BVV(flags, 3)
                     initialized = True
@@ -326,30 +364,40 @@ class SimDbgMemory(object):
             elif len(self._memory_backer) <= self._page_size:
                 for i in self._memory_backer:
                     if new_page_addr <= i and i <= new_page_addr + self._page_size:
-                        if isinstance(self._memory_backer[i], claripy.ast.Base):
+                        if isinstance(
+                                self._memory_backer[i],
+                                claripy.ast.Base):
                             backer = self._memory_backer[i]
                         elif isinstance(self._memory_backer[i], bytes):
                             backer = claripy.BVV(self._memory_backer[i])
                         else:
-                            backer = claripy.BVV(self._memory_backer[i], self.byte_width)
-                        mo = SimMemoryObject(backer, i, byte_width=self.byte_width)
-                        self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                            backer = claripy.BVV(
+                                self._memory_backer[i], self.byte_width)
+                        mo = SimMemoryObject(
+                            backer, i, byte_width=self.byte_width)
+                        self._apply_object_to_page(
+                            n * self._page_size, mo, page=new_page)
                         initialized = True
             elif len(self._memory_backer) > self._page_size:
                 for i in range(self._page_size):
                     try:
-                        if isinstance(self._memory_backer[i], claripy.ast.Base):
+                        if isinstance(
+                                self._memory_backer[i],
+                                claripy.ast.Base):
                             backer = self._memory_backer[i]
                         elif isinstance(self._memory_backer[i], bytes):
                             backer = claripy.BVV(self._memory_backer[i])
                         else:
-                            backer = claripy.BVV(self._memory_backer[i], self.byte_width)
-                        mo = SimMemoryObject(backer, new_page_addr+i, byte_width=self.byte_width)
-                        self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                            backer = claripy.BVV(
+                                self._memory_backer[i], self.byte_width)
+                        mo = SimMemoryObject(
+                            backer, new_page_addr + i, byte_width=self.byte_width)
+                        self._apply_object_to_page(
+                            n * self._page_size, mo, page=new_page)
                         initialized = True
                     except KeyError:
                         pass
-            
+
         # page from debugger
         try:
             if seg is not None:
@@ -362,13 +410,13 @@ class SimDbgMemory(object):
                     perms += DbgPage.PROT_READ
                 new_page.permissions = claripy.BVV(perms, 3)
                 #print "permissions setted %x  %d" % (new_page_addr, perms)
-                
+
                 initialized = True
                 setattr(new_page, "from_dbg", True)
         except Exception as ee:
             import traceback
             traceback.print_exc()
-        
+
         if self.state is not None:
             self.state.scratch.pop_priv()
         return initialized
@@ -394,7 +442,8 @@ class SimDbgMemory(object):
 
         if write and page_num not in self._cowed:
             page = page.copy()
-            self._symbolic_addrs[page_num] = set(self._symbolic_addrs[page_num])
+            self._symbolic_addrs[page_num] = set(
+                self._symbolic_addrs[page_num])
             self._cowed.add(page_num)
             self._pages[page_num] = page
 
@@ -443,7 +492,8 @@ class SimDbgMemory(object):
         :returns:       A set of differing bytes.
         """
         if self._page_size != other._page_size:
-            raise SimMemoryError("SimPagedMemory page sizes differ. This is asking for disaster.")
+            raise SimMemoryError(
+                "SimPagedMemory page sizes differ. This is asking for disaster.")
 
         our_pages = set(self._pages.keys())
         their_pages = set(other._pages.keys())
@@ -466,9 +516,17 @@ class SimDbgMemory(object):
 
             our_keys = set(our_page.keys())
             their_keys = set(their_page.keys())
-            changes = (our_keys - their_keys) | (their_keys - our_keys) | {
-                i for i in (our_keys & their_keys) if our_page.load_mo(self.state, i) is not their_page.load_mo(self.state, i)
-            }
+            changes = (
+                our_keys -
+                their_keys) | (
+                their_keys -
+                our_keys) | {
+                i for i in (
+                    our_keys & their_keys) if our_page.load_mo(
+                    self.state,
+                    i) is not their_page.load_mo(
+                        self.state,
+                    i)}
             candidates.update(changes)
 
         #both_changed = our_changes & their_changes
@@ -485,16 +543,18 @@ class SimDbgMemory(object):
             elif c in self and c not in other:
                 differences.add(c)
             else:
-                if type(self[c]) is not SimMemoryObject:
-                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), self.byte_width), c, byte_width=self.byte_width)
-                if type(other[c]) is not SimMemoryObject:
-                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), self.byte_width), c, byte_width=self.byte_width)
+                if not isinstance(self[c], SimMemoryObject):
+                    self[c] = SimMemoryObject(self.state.se.BVV(
+                        ord(self[c]), self.byte_width), c, byte_width=self.byte_width)
+                if not isinstance(other[c], SimMemoryObject):
+                    other[c] = SimMemoryObject(self.state.se.BVV(
+                        ord(other[c]), self.byte_width), c, byte_width=self.byte_width)
                 if c in self and self[c] != other[c]:
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
                     other_byte = other[c].bytes_at(c, 1)
                     if self_byte is not other_byte:
-                        #l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
+                        # l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
                         #        self_byte, other_byte,
                         #        self[c].object.model, other[c].object.model)
                         differences.add(c)
@@ -519,9 +579,10 @@ class SimDbgMemory(object):
         """
         page_num = page_base / self._page_size
         try:
-            page = self._get_page(page_num,
-                                  write=True,
-                                  create=not self.allow_segv) if page is None else page
+            page = self._get_page(
+                page_num,
+                write=True,
+                create=not self.allow_segv) if page is None else page
         except KeyError:
             if self.allow_segv:
                 raise SimSegfaultError(mo.base, 'write-miss')
@@ -534,9 +595,10 @@ class SimDbgMemory(object):
         return True
 
     def _containing_pages(self, mo_start, mo_end):
-        page_start = mo_start - mo_start%self._page_size
-        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
-        return [ b for b in range(page_start, page_end, self._page_size) ]
+        page_start = mo_start - mo_start % self._page_size
+        page_end = mo_end + (self._page_size - mo_end %
+                             self._page_size) if mo_end % self._page_size else mo_end
+        return [b for b in range(page_start, page_end, self._page_size)]
 
     def _containing_pages_mo(self, mo):
         mo_start = mo.base
@@ -567,14 +629,23 @@ class SimDbgMemory(object):
         """
 
         if old.object.size() != new_content.size():
-            raise SimMemoryError("memory objects can only be replaced by the same length content")
+            raise SimMemoryError(
+                "memory objects can only be replaced by the same length content")
 
-        new = SimMemoryObject(new_content, old.base, byte_width=self.byte_width)
+        new = SimMemoryObject(
+            new_content,
+            old.base,
+            byte_width=self.byte_width)
         for p in self._containing_pages_mo(old):
-            self._get_page(p/self._page_size, write=True).replace_mo(self.state, old, new)
+            self._get_page(
+                p / self._page_size,
+                write=True).replace_mo(
+                self.state,
+                old,
+                new)
 
         if isinstance(new.object, claripy.ast.BV):
-            for b in range(old.base, old.base+old.length):
+            for b in range(old.base, old.base + old.length):
                 self._update_mappings(b, new.object)
         return new
 
@@ -588,14 +659,21 @@ class SimDbgMemory(object):
         """
 
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
-            raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add "
-                                 "sim_options.REVERSE_MEMORY_NAME_MAP to the state options")
+            raise SimMemoryError(
+                "replace_all is not doable without a reverse name mapping. Please add "
+                "sim_options.REVERSE_MEMORY_NAME_MAP to the state options")
 
-        if not isinstance(old, claripy.ast.BV) or not isinstance(new, claripy.ast.BV):
-            raise SimMemoryError("old and new arguments to replace_all() must be claripy.BV objects")
+        if not isinstance(
+                old,
+                claripy.ast.BV) or not isinstance(
+                new,
+                claripy.ast.BV):
+            raise SimMemoryError(
+                "old and new arguments to replace_all() must be claripy.BV objects")
 
         if len(old.variables) == 0:
-            raise SimMemoryError("old argument to replace_all() must have at least one named variable")
+            raise SimMemoryError(
+                "old argument to replace_all() must have at least one named variable")
 
         # Compute an intersection between sets of memory objects for each unique variable name. The eventual memory
         # object set contains all memory objects that we should update.
@@ -610,7 +688,7 @@ class SimDbgMemory(object):
             else:
                 memory_objects &= self.memory_objects_for_name(v)
 
-        replaced_objects_cache = { }
+        replaced_objects_cache = {}
         for mo in memory_objects:
             replaced_object = None
 
@@ -658,7 +736,7 @@ class SimDbgMemory(object):
                 options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options):
             return
 
-        for i in range(actual_addr, actual_addr+size):
+        for i in range(actual_addr, actual_addr + size):
             self._update_mappings(i, cnt)
 
     def _update_mappings(self, actual_addr, cnt):
@@ -676,7 +754,7 @@ class SimDbgMemory(object):
 
         if (options.REVERSE_MEMORY_HASH_MAP not in self.state.options) and \
                 len(self.state.se.variables(cnt)) == 0:
-           return
+            return
 
         l.debug("Updating mappings at address 0x%x", actual_addr)
 
@@ -742,8 +820,10 @@ class SimDbgMemory(object):
         to_discard = set()
         for e in self._name_mapping[n]:
             try:
-                if n in self[e].object.variables: yield e
-                else: to_discard.add(e)
+                if n in self[e].object.variables:
+                    yield e
+                else:
+                    to_discard.add(e)
             except KeyError:
                 to_discard.add(e)
         self._name_mapping[n] -= to_discard
@@ -760,8 +840,10 @@ class SimDbgMemory(object):
         to_discard = set()
         for e in self._hash_mapping[h]:
             try:
-                if h == hash(self[e].object): yield e
-                else: to_discard.add(e)
+                if h == hash(self[e].object):
+                    yield e
+                else:
+                    to_discard.add(e)
             except KeyError:
                 to_discard.add(e)
         self._hash_mapping[h] -= to_discard
@@ -774,14 +856,14 @@ class SimDbgMemory(object):
         This is useful for replacing those values in one fell swoop with :func:`replace_memory_object()`, even if
         they have been partially overwritten.
         """
-        return set([ self[i] for i in self.addrs_for_name(n)])
+        return set([self[i] for i in self.addrs_for_name(n)])
 
     def memory_objects_for_hash(self, n):
         """
         Returns a set of :class:`SimMemoryObjects` that contain expressions that contain a variable with the hash
         `h`.
         """
-        return set([ self[i] for i in self.addrs_for_hash(n)])
+        return set([self[i] for i in self.addrs_for_hash(n)])
 
     def permissions(self, addr, permissions=None):
         """
@@ -791,7 +873,8 @@ class SimDbgMemory(object):
         """
 
         if self.state.se.symbolic(addr):
-            raise SimMemoryError("page permissions cannot currently be looked up for symbolic addresses")
+            raise SimMemoryError(
+                "page permissions cannot currently be looked up for symbolic addresses")
 
         if isinstance(addr, claripy.ast.bv.BV):
             addr = self.state.se.eval(addr)
@@ -808,8 +891,10 @@ class SimDbgMemory(object):
             if isinstance(permissions, (int, long)):
                 permissions = claripy.BVV(permissions, 3)
 
-            if not isinstance(permissions,claripy.ast.bv.BV):
-                raise SimMemoryError("Unknown permissions argument type of {0}.".format(type(permissions)))
+            if not isinstance(permissions, claripy.ast.bv.BV):
+                raise SimMemoryError(
+                    "Unknown permissions argument type of {0}.".format(
+                        type(permissions)))
 
             page.permissions = permissions
 
@@ -832,19 +917,27 @@ class SimDbgMemory(object):
         if length % self._page_size > 0:
             pages += 1
 
-
         if isinstance(permissions, (int, long)):
             permissions = claripy.BVV(permissions, 3)
 
         for page in xrange(pages):
             page_id = base_page_num + page
-            self._pages[page_id] = self._create_page(page_id, permissions=permissions)
+            self._pages[page_id] = self._create_page(
+                page_id, permissions=permissions)
             self._symbolic_addrs[page_id] = set()
             if init_zero:
                 if self.state is not None:
                     self.state.scratch.push_priv(True)
-                mo = SimMemoryObject(claripy.BVV(0, self._page_size * self.byte_width), page_id*self._page_size, byte_width=self.byte_width)
-                self._apply_object_to_page(page_id*self._page_size, mo, page=self._pages[page_id])
+                mo = SimMemoryObject(
+                    claripy.BVV(
+                        0,
+                        self._page_size *
+                        self.byte_width),
+                    page_id *
+                    self._page_size,
+                    byte_width=self.byte_width)
+                self._apply_object_to_page(
+                    page_id * self._page_size, mo, page=self._pages[page_id])
                 if self.state is not None:
                     self.state.scratch.pop_priv()
 
@@ -868,11 +961,13 @@ class SimDbgMemory(object):
         if self.state.mode != 'fastpath':
             for page in xrange(pages):
                 if base_page_num + page not in self._pages:
-                    l.warning("unmap_region received address and length combination is not mapped")
+                    l.warning(
+                        "unmap_region received address and length combination is not mapped")
                     return
 
         for page in xrange(pages):
             del self._pages[base_page_num + page]
             del self._symbolic_addrs[base_page_num + page]
+
 
 from angr import sim_options as o
