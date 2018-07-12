@@ -1,4 +1,3 @@
-import bintrees
 import cooldict
 import claripy
 import cffi
