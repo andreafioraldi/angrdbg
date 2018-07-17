@@ -36,6 +36,17 @@ A wrapper around angr to simplify the symbolic values creation and to write the 
 
 note: memory values are the same that are returned by `state.mem[addr]`
 
+#### Memory type
+
+The memory type defines how angrdbg get the memory from the debugger and from the cle backer. Use `get_memory_type` to know what the active one.
+
+You can change the memory type with `set_memory_type`.
+
++ `SIMPROCS_FROM_CLE` import only not-stubs simprocedures in the got from the cle backer (defaut)
++ `ONLY_GOT_FROM_CLE` import the entire got from the cle backer
++ `USE_CLE_MEMORY` import memory from the cle backer firstly
++ `GET_ALL_DISCARD_CLE` full debugger memory mode (the only avaiable for PE at the moment)
+
 ## Frontends
 + GDB -> [angrgdb](https://github.com/andreafioraldi/angrgdb)
 + IDA Pro debugger -> [IDAngr](https://github.com/andreafioraldi/IDAngr)
