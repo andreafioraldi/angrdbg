@@ -1,5 +1,16 @@
 from context import get_debugger
 
+'''
+def get_other_symbols_addrs(proj):
+    i = 1
+    while True:
+        try:
+            sym = proj.loader.main_object.get_symbol(i)
+        except: break
+        if sym.rebased_addr > 0:
+            yield sym.name, sym.relative_addr
+        i += 1
+'''
 
 def build_cle_got(proj, state):
     debugger = get_debugger()
@@ -85,7 +96,9 @@ def build_mixed_got(proj, state):
                     ea = debugger.resolve_name(name)
                     if ea is not None:
                         setattr(state.mem[a], "uint%d_t" % proj.arch.bits, ea)
-
+    
+    
+    
     '''
     print "## angr got - final ##"
     for a in xrange(got_start, got_end, entry_len):
@@ -141,7 +154,7 @@ def build_bind_now_got(proj, state):
                 ea = debugger.resolve_name(name)
                 if ea is not None:
                     setattr(state.mem[a], "uint%d_t" % proj.arch.bits, ea)
-
+    
     '''
     print "## angr got - final ##"
     for a in xrange(got_start, got_end, entry_len):

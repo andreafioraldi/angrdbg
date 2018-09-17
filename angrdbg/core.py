@@ -6,14 +6,29 @@ from got_builder import *
 import claripy
 
 
-def StateShot():
+def get_registers():
+    project = load_project()
+    regs = {}
+    
+    for reg in sorted(project.arch.registers,
+                      key=lambda x: project.arch.registers.get(x)[1]):
+        if reg in ("sp", "bp", "ip"):
+            continue
+        try:
+            regs[reg] = debugger.get_reg(reg)
+        except BaseException:
+            pass
+    
+    return regs
+
+def StateShot(regs={}, sync_brk=True, from_dump=False):
     debugger = get_debugger()
 
-    if not debugger.is_active():
-        raise RuntimeError(
-            "The debugger must be active and suspended before calling StateShot")
-
-    debugger.refresh_memory()
+    if not from_dump:
+        if not debugger.is_active():
+            raise RuntimeError(
+                "The debugger must be active and suspended before calling StateShot")
+        debugger.refresh_memory()
 
     project = load_project()
 
@@ -31,13 +46,16 @@ def StateShot():
         if reg in ("sp", "bp", "ip"):
             continue
         try:
-            setattr(state.regs, reg, debugger.get_reg(reg))
+            if reg in regs:
+                setattr(state.regs, reg, regs[reg])
+            else:
+                setattr(state.regs, reg, debugger.get_reg(reg))
         except BaseException:
             pass
 
     if project.simos.name == "Linux":
         # inject code to get brk if we are on linux x86/x86_64
-        if project.arch.name in ("AMD64", "X86"):
+        if sync_brk and project.arch.name in ("AMD64", "X86"):
             state.posix.set_brk(get_linux_brk(project.arch.bits))
 
         if get_memory_type() == SIMPROCS_FROM_CLE:

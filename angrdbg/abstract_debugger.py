@@ -101,5 +101,6 @@ class Debugger(object):
         raise NotImplementedError()
 
     # -------------------------------------
-    def resolve_name(self, addr):  # return None on fail
+    def resolve_name(self, name):  # return None on fail
         raise NotImplementedError()
+
