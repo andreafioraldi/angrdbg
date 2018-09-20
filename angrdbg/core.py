@@ -107,6 +107,7 @@ class StateManager(object):
             raise ValueError(
                 "key must be a register name or a memory address, not %s" % str(
                     type(key)))
+        return key
 
     def sim_from_set(self, simset):
         for key in simset.symbolics:
@@ -135,6 +136,12 @@ class StateManager(object):
 
     def simulation_manager(self):
         return load_project().factory.simulation_manager(self.state)
+
+    def get_symbolic(self, key):
+        return self.symbolics.get(key)
+
+    def get_state(self):
+        return self.state
 
     def to_dbg(self, found_state):
         if isinstance(found_state, StateManager):

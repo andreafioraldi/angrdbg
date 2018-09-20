@@ -50,3 +50,4 @@ You can change the memory type with `set_memory_type`.
 ## Frontends
 + GDB -> [angrgdb](https://github.com/andreafioraldi/angrgdb)
 + IDA Pro debugger -> [IDAngr](https://github.com/andreafioraldi/IDAngr)
++ radare2 -> [r2angrdbg](https://github.com/andreafioraldi/r2angrdbg)
