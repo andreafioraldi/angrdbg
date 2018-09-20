@@ -21,7 +21,7 @@ def get_registers():
     
     return regs
 
-def StateShot(regs={}, sync_brk=True, from_dump=False):
+def StateShot(regs={}, sync_brk=True, from_dump=False, **kwargs):
     debugger = get_debugger()
 
     if not from_dump:
@@ -39,7 +39,7 @@ def StateShot(regs={}, sync_brk=True, from_dump=False):
         permissions_backer=None,
         memory_id="mem")
 
-    state = project.factory.blank_state(plugins={"memory": mem})
+    state = project.factory.blank_state(plugins={"memory": mem}, **kwargs)
 
     for reg in sorted(project.arch.registers,
                       key=lambda x: project.arch.registers.get(x)[1]):
