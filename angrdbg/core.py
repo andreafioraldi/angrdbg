@@ -88,8 +88,8 @@ def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
 
 
 class StateManager(object):
-    def __init__(self, state=None):
-        self.state = StateShot() if state is None else state
+    def __init__(self, state=None, **kwargs):
+        self.state = StateShot(**kwargs) if state is None else state
         self.symbolics = {}
         self.debugger = get_debugger()
 
