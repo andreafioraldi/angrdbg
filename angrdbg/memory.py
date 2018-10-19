@@ -3,59 +3,46 @@ from collections import defaultdict
 import logging
 import itertools
 
-l = logging.getLogger("angrdbg.mem.memory")
+l = logging.getLogger("angrdbg.memory")
 
 import claripy
-from angr.storage.memory import SimMemory
-from angr.storage.memory_object import SimMemoryObject
 
-from page import SimDbgMemory
+from angr.storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
+from angr.storage.memory_object import SimMemoryObject
+from angr.sim_state_options import SimStateOptions
+
+try:
+    long
+    # py2
+    from .page_7 import SimDbgMemory
+except:
+    long = int
+    from .page_8 import SimDbgMemory
 
 DEFAULT_MAX_SEARCH = 8
-
 
 class MultiwriteAnnotation(claripy.Annotation):
     @property
     def eliminatable(self):
         return False
-
     @property
     def relocateable(self):
         return True
 
-
-def _multiwrite_filter(mem, ast):  # pylint:disable=unused-argument
+def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
     # this is a huge hack, but so is the whole multiwrite crap
-    return any(isinstance(a, MultiwriteAnnotation)
-               for a in ast._uneliminatable_annotations)
+    return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminatable_annotations)
 
-
-class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
-    _CONCRETIZATION_STRATEGIES = [
-        'symbolic',
-        'symbolic_approx',
-        'any',
-        'any_approx',
-        'max',
-        'max_approx',
-        'symbolic_nonzero',
-        'symbolic_nonzero_approx',
-        'norepeats']
-    _SAFE_CONCRETIZATION_STRATEGIES = ['symbolic', 'symbolic_approx']
+class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
+    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx',
+                                   'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
+    _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx' ]
 
     def __init__(
-            self,
-            memory_backer=None,
-            permissions_backer=None,
-            mem=None,
-            memory_id="mem",
-            endness=None,
-            abstract_backer=False,
-            check_permissions=None,
-            read_strategies=None,
-            write_strategies=None,
-            stack_region_map=None,
-            generic_region_map=None):
+        self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem",
+        endness=None, abstract_backer=False, check_permissions=None,
+        read_strategies=None, write_strategies=None, stack_region_map=None, generic_region_map=None
+    ):
         SimMemory.__init__(self,
                            endness=endness,
                            abstract_backer=abstract_backer,
@@ -76,6 +63,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         self.read_strategies = read_strategies
         self.write_strategies = write_strategies
 
+
     #
     # Lifecycle management
     #
@@ -91,8 +79,8 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             memory_id=self.id,
             endness=self.endness,
             abstract_backer=self._abstract_backer,
-            read_strategies=[s.copy() for s in self.read_strategies],
-            write_strategies=[s.copy() for s in self.write_strategies],
+            read_strategies=[ s.copy() for s in self.read_strategies ],
+            write_strategies=[ s.copy() for s in self.write_strategies ],
             stack_region_map=self._stack_region_map,
             generic_region_map=self._generic_region_map
         )
@@ -111,7 +99,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
         return changed_bytes
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         """
         Merge this SimMemory with the other SimMemory
         """
@@ -124,26 +112,22 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         self.read_strategies = self._merge_strategies(self.read_strategies, *[
             o.read_strategies for o in others
         ])
-        self.write_strategies = self._merge_strategies(
-            self.write_strategies, *[o.write_strategies for o in others])
-        merged_bytes = self._merge(
-            others,
-            changed_bytes,
-            merge_conditions=merge_conditions)
+        self.write_strategies = self._merge_strategies(self.write_strategies, *[
+            o.write_strategies for o in others
+        ])
+        merged_bytes = self._merge(others, changed_bytes, merge_conditions=merge_conditions)
 
         return len(merged_bytes) > 0
 
     @staticmethod
     def _merge_strategies(*strategy_lists):
         if len(set(len(sl) for sl in strategy_lists)) != 1:
-            raise SimMergeError(
-                "unable to merge memories with amounts of strategies")
+            raise SimMergeError("unable to merge memories with amounts of strategies")
 
-        merged_strategies = []
+        merged_strategies = [ ]
         for strategies in zip(*strategy_lists):
             if len(set(s.__class__ for s in strategies)) != 1:
-                raise SimMergeError(
-                    "unable to merge memories with different types of strategies")
+                raise SimMergeError("unable to merge memories with different types of strategies")
 
             unique = list(set(strategies))
             if len(unique) > 1:
@@ -157,25 +141,17 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         self._merge(others, changed_bytes, is_widening=True)
         return len(changed_bytes) > 0
 
-    def _merge(
-            self,
-            others,
-            changed_bytes,
-            merge_conditions=None,
-            is_widening=False):
+    def _merge(self, others, changed_bytes, merge_conditions=None, is_widening=False):
         all_memories = [self] + others
         if merge_conditions is None:
-            merge_conditions = [None] * len(all_memories)
+            merge_conditions = [ None ] * len(all_memories)
 
         merged_to = None
         merged_objects = set()
         merged_bytes = set()
         for b in sorted(changed_bytes):
             if merged_to is not None and not b >= merged_to:
-                l.info(
-                    "merged_to = %d ... already merged byte 0x%x",
-                    merged_to,
-                    b)
+                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -192,17 +168,15 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            mos = set(mo for mo, _ in memory_objects)
+            mos = set(mo for mo,_ in memory_objects)
             mo_bases = set(mo.base for mo, _ in memory_objects)
             mo_lengths = set(mo.length for mo, _ in memory_objects)
 
             if not unconstrained_in and not (mos - merged_objects):
                 continue
 
-            # first, optimize the case where we are dealing with the same-sized
-            # memory objects
-            if len(mo_bases) == 1 and len(
-                    mo_lengths) == 1 and not unconstrained_in:
+            # first, optimize the case where we are dealing with the same-sized memory objects
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in:
                 our_mo = self.mem[b]
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
@@ -211,12 +185,12 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                 merged_to = mo_base + list(mo_lengths)[0]
 
                 merged_val = self._merge_values(
-                    to_merge, memory_objects[0][0].length, is_widening=is_widening)
+                    to_merge, memory_objects[0][0].length, is_widening=is_widening
+                )
 
                 if options.ABSTRACT_MEMORY in self.state.options:
                     # merge check for abstract memory
-                    if not to_merge[0][0].uninitialized and self.state.se.backends.vsa.identical(
-                            merged_val, to_merge[0][0]):
+                    if not to_merge[0][0].uninitialized and self.state.solver.backends.vsa.identical(merged_val, to_merge[0][0]):
                         continue
 
                 # do the replacement
@@ -229,8 +203,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
-                min_size = min([mo.length - (b - mo.base)
-                                for mo, _ in memory_objects])
+                min_size = min([mo.length - (b - mo.base) for mo, _ in memory_objects])
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if b + i in um:
@@ -241,38 +214,30 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = [(mo.bytes_at(b, min_size), fv)
-                             for mo, fv in memory_objects] if min_size != 0 else []
+                extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
                 created = [
-                    (self.get_unconstrained_bytes(
-                        "merge_uc_%s_%x" %
-                        (uc.id,
-                         b),
-                        min_size *
-                        self.state.arch.byte_width),
-                        fv) for uc,
-                    fv in unconstrained_in]
+                    (self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * self.state.arch.byte_width), fv) for
+                    uc, fv in unconstrained_in
+                ]
                 to_merge = extracted + created
 
-                merged_val = self._merge_values(
-                    to_merge, min_size, is_widening=is_widening)
+                merged_val = self._merge_values(to_merge, min_size, is_widening=is_widening)
 
                 if options.ABSTRACT_MEMORY in self.state.options:
                     # merge check for abstract memory
                     if (not unconstrained_in or not unconstrained_in[0][0] is self) \
-                            and self.state.se.backends.vsa.identical(merged_val, to_merge[0][0]):
+                            and self.state.solver.backends.vsa.identical(merged_val, to_merge[0][0]):
                         continue
 
-                # do not convert endianness again
-                self.store(b, merged_val, endness='Iend_BE', inspect=False)
+                self.store(b, merged_val, endness='Iend_BE', inspect=False)  # do not convert endianness again
 
                 merged_bytes.add(b)
 
         return merged_bytes
 
-    def set_state(self, s):
-        SimMemory.set_state(self, s)
-        self.mem.state = s
+    def set_state(self, state):
+        super(SimSymbolicDbgMemory, self).set_state(state)
+        self.mem.state = state._get_weakref()
 
         if self.state is not None:
             if self.read_strategies is None:
@@ -281,12 +246,12 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                 self._create_default_write_strategies()
 
     def _create_default_read_strategies(self):
-        self.read_strategies = []
+        self.read_strategies = [ ]
         if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
             # first, we try to resolve the read address by approximation
             self.read_strategies.append(
-                concretization_strategies.SimConcretizationStrategyRange(
-                    1024, exact=False), )
+                concretization_strategies.SimConcretizationStrategyRange(1024, exact=False),
+            )
 
         # then, we try symbolic reads, with a maximum width of a kilobyte
         self.read_strategies.append(
@@ -300,18 +265,18 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             )
 
     def _create_default_write_strategies(self):
-        self.write_strategies = []
+        self.write_strategies = [ ]
         if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
             if options.SYMBOLIC_WRITE_ADDRESSES not in self.state.options:
                 # we try to resolve a unique solution by approximation
                 self.write_strategies.append(
-                    concretization_strategies.SimConcretizationStrategySingle(
-                        exact=False), )
+                    concretization_strategies.SimConcretizationStrategySingle(exact=False),
+                )
             else:
                 # we try a solution range by approximation
                 self.write_strategies.append(
-                    concretization_strategies.SimConcretizationStrategyRange(
-                        128, exact=False))
+                    concretization_strategies.SimConcretizationStrategyRange(128, exact=False)
+                )
 
         if options.SYMBOLIC_WRITE_ADDRESSES in self.state.options:
             # we try to find a range of values
@@ -319,11 +284,11 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                 concretization_strategies.SimConcretizationStrategyRange(128)
             )
         else:
-            # we try to find a range of values, but only for ASTs annotated
-            # with the multiwrite annotation
-            self.write_strategies.append(
-                concretization_strategies.SimConcretizationStrategyRange(
-                    128, filter=_multiwrite_filter))
+            # we try to find a range of values, but only for ASTs annotated with the multiwrite annotation
+            self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(
+                128,
+                filter=_multiwrite_filter
+            ))
 
         # finally, we just grab the maximum solution
         if options.CONSERVATIVE_WRITE_STRATEGY not in self.state.options:
@@ -361,33 +326,26 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
     #
 
     def _resolve_size_range(self, size):
-        if not self.state.se.symbolic(size):
-            i = self.state.se.eval(size)
+        if not self.state.solver.symbolic(size):
+            i = self.state.solver.eval(size)
             if i > self._maximum_concrete_size:
-                raise SimMemoryLimitError(
-                    "Concrete size %d outside of allowable limits" % i)
+                raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
             return i, i
 
         if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
-            max_size_approx = self.state.se.max_int(size, exact=True)
-            min_size_approx = self.state.se.min_int(size, exact=True)
+            max_size_approx = self.state.solver.max_int(size, exact=True)
+            min_size_approx = self.state.solver.min_int(size, exact=True)
 
             if max_size_approx < self._maximum_symbolic_size_approx:
                 return min_size_approx, max_size_approx
 
-        max_size = self.state.se.max_int(size)
-        min_size = self.state.se.min_int(size)
+        max_size = self.state.solver.max_int(size)
+        min_size = self.state.solver.min_int(size)
 
         if min_size > self._maximum_symbolic_size:
-            self.state.history.add_event(
-                'memory_limit',
-                message="Symbolic size %d outside of allowable limits" %
-                min_size,
-                size=size)
+            self.state.history.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
             if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
-                raise SimMemoryLimitError(
-                    "Symbolic size %d outside of allowable limits" %
-                    min_size)
+                raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
             else:
                 min_size = self._maximum_symbolic_size
 
@@ -404,21 +362,15 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
         # we try all the strategies in order
         for s in strategies:
-            # first, we trigger the SimInspect breakpoint and give it a chance
-            # to intervene
+            # first, we trigger the SimInspect breakpoint and give it a chance to intervene
             e = addr
             self.state._inspect(
-                'address_concretization',
-                BP_BEFORE,
-                address_concretization_strategy=s,
-                address_concretization_action=action,
-                address_concretization_memory=self,
-                address_concretization_expr=e,
-                address_concretization_add_constraints=True)
-            s = self.state._inspect_getattr(
-                'address_concretization_strategy', s)
-            e = self.state._inspect_getattr(
-                'address_concretization_expr', addr)
+                'address_concretization', BP_BEFORE, address_concretization_strategy=s,
+                address_concretization_action=action, address_concretization_memory=self,
+                address_concretization_expr=e, address_concretization_add_constraints=True
+            )
+            s = self.state._inspect_getattr('address_concretization_strategy', s)
+            e = self.state._inspect_getattr('address_concretization_expr', addr)
 
             # if the breakpoint None'd out the strategy, we skip it
             if s is None:
@@ -443,8 +395,8 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
         # well, we tried
         raise SimMemoryAddressError(
-            "Unable to concretize address for %s with the provided strategies." %
-            action)
+            "Unable to concretize address for %s with the provided strategies." % action
+        )
 
     def concretize_write_addr(self, addr, strategies=None):
         """
@@ -455,10 +407,10 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             :returns:               A list of concrete addresses.
         """
 
-        if isinstance(addr, (int, long)):
-            return [addr]
-        elif not self.state.se.symbolic(addr):
-            return [self.state.se.eval(addr)]
+        if isinstance(addr, int):
+            return [ addr ]
+        elif not self.state.solver.symbolic(addr):
+            return [ self.state.solver.eval(addr) ]
 
         strategies = self.write_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'store')
@@ -472,10 +424,10 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             :returns:               A list of concrete addresses.
         """
 
-        if isinstance(addr, (int, long)):
-            return [addr]
-        elif not self.state.se.symbolic(addr):
-            return [self.state.se.eval(addr)]
+        if isinstance(addr, int):
+            return [ addr ]
+        elif not self.state.solver.symbolic(addr):
+            return [ self.state.solver.eval(addr) ]
 
         strategies = self.read_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'load')
@@ -488,62 +440,61 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
     #
 
     def _fill_missing(self, addr, num_bytes, inspect=True, events=True):
-        name = "%s_%x" % (self.id, addr)
+        if self.category == 'reg':
+            name = "reg_%s" % (self.state.arch.translate_register_name(addr))
+        else:
+            name = "%s_%x" % (self.id, addr)
         all_missing = [
             self.get_unconstrained_bytes(
                 name,
-                min(self.mem._page_size, num_bytes) *
-                self.state.arch.byte_width,
+                min(self.mem._page_size, num_bytes)*self.state.arch.byte_width,
                 source=i,
                 inspect=inspect,
                 events=events,
                 key=self.variable_key_prefix + (addr,),
-                eternal=False)  # :(
-            for i in range(addr, addr + num_bytes, self.mem._page_size)
+                eternal=False) # :(
+            for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
+        if (all_missing and
+                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+                ):
+            if self.category == 'reg':
+                # try to get a register name
+                reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
+                l.warning("Register %s has an unspecified value; "
+                          "Generating an unconstrained value of %d bytes.", reg_str, num_bytes)
+            elif self.category == 'mem':
+                l.warning("Memory address %#x has an unspecified value; "
+                          "Generating an unconstrained value of %d bytes.", addr, num_bytes)
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-            all_missing = [a.reversed for a in all_missing]
+            all_missing = [ a.reversed for a in all_missing ]
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
-            all_missing = [a.reversed for a in all_missing]
-        b = self.state.se.Concat(
-            *all_missing) if len(all_missing) > 1 else all_missing[0]
+            all_missing = [ a.reversed for a in all_missing ]
+        b = self.state.solver.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
         if events:
-            self.state.history.add_event(
-                'uninitialized',
-                memory_id=self.id,
-                addr=addr,
-                size=num_bytes)
-        default_mo = SimMemoryObject(
-            b, addr, byte_width=self.state.arch.byte_width)
+            self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
+        default_mo = SimMemoryObject(b, addr, byte_width=self.state.arch.byte_width)
         self.state.scratch.push_priv(True)
         self.mem.store_memory_object(default_mo, overwrite=False)
         self.state.scratch.pop_priv()
         return default_mo
 
-    def _read_from(
-            self,
-            addr,
-            num_bytes,
-            inspect=True,
-            events=True,
-            ret_on_segv=False):
+    def _read_from(self, addr, num_bytes, inspect=True, events=True, ret_on_segv=False):
         items = self.mem.load_objects(addr, num_bytes, ret_on_segv=ret_on_segv)
 
         # optimize the case where we have a single object return
-        if len(items) == 1 and items[0][1].includes(
-                addr) and items[0][1].includes(addr + num_bytes - 1):
+        if len(items) == 1 and items[0][1].includes(addr) and items[0][1].includes(addr + num_bytes - 1):
             return items[0][1].bytes_at(addr, num_bytes)
 
-        segments = []
+        segments = [ ]
         last_missing = addr + num_bytes - 1
-        for mo_addr, mo in reversed(items):
+        for mo_addr,mo in reversed(items):
             if not mo.includes(last_missing):
                 # add missing bytes
                 start_addr = mo.last_addr + 1
                 length = last_missing - mo.last_addr
-                fill_mo = self._fill_missing(
-                    start_addr, length, inspect=inspect, events=events)
+                fill_mo = self._fill_missing(start_addr, length, inspect=inspect, events=events)
                 segments.append(fill_mo.bytes_at(start_addr, length).reversed)
                 last_missing = mo.last_addr
 
@@ -555,8 +506,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         if last_missing != addr - 1:
             start_addr = addr
             end_addr = last_missing - addr + 1
-            fill_mo = self._fill_missing(
-                start_addr, end_addr, inspect=inspect, events=events)
+            fill_mo = self._fill_missing(start_addr, end_addr, inspect=inspect, events=events)
             segments.append(fill_mo.bytes_at(start_addr, end_addr))
 
         # reverse the segments to put them in the right order
@@ -568,95 +518,86 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         elif len(segments) == 1:
             r = segments[0]
         else:
-            r = self.state.se.BVV(0, 0)
+            r = self.state.solver.BVV(0, 0)
         return r
 
     def _load(self, dst, size, condition=None, fallback=None,
-              inspect=True, events=True, ret_on_segv=False):
-        if self.state.se.symbolic(size):
-            l.warning(
-                "Concretizing symbolic length. Much sad; think about implementing.")
+            inspect=True, events=True, ret_on_segv=False):
+        if self.state.solver.symbolic(size):
+            l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
         # for now, we always load the maximum size
-        _, max_size = self._resolve_size_range(size)
-        if options.ABSTRACT_MEMORY not in self.state.options and self.state.se.symbolic(
-                size):
+        _,max_size = self._resolve_size_range(size)
+        if options.ABSTRACT_MEMORY not in self.state.options and self.state.solver.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
 
         if max_size == 0:
-            self.state.history.add_event(
-                'memory_limit', message="0-length read")
+            self.state.history.add_event('memory_limit', message="0-length read")
 
         size = max_size
-        if self.state.se.symbolic(
-                dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [], self.get_unconstrained_bytes(
-                "symbolic_read_unconstrained", size * self.state.arch.byte_width), []
+        if self.state.solver.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
+            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*self.state.arch.byte_width), [ ]
 
         # get a concrete set of read addresses
         try:
             addrs = self.concretize_read_addr(dst)
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
-                return [], self.get_unconstrained_bytes(
-                    "symbolic_read_unconstrained", size * self.state.arch.byte_width), []
+                return [ ], self.get_unconstrained_bytes(
+                    "symbolic_read_unconstrained", size*self.state.arch.byte_width
+                ), [ ]
             else:
                 raise
 
-        read_value = self._read_from(addrs[0], size, inspect=inspect,
-                                     events=events, ret_on_segv=ret_on_segv)
-        constraint_options = [dst == addrs[0]]
+        constraint_options = [ ]
 
-        for a in addrs[1:]:
-            read_value = self.state.se.If(dst == a, self._read_from(
-                a, size, inspect=inspect, events=events), read_value)
-            constraint_options.append(dst == a)
+        if len(addrs) == 1:
+            # It's not an conditional reaed
+            constraint_options.append(dst == addrs[0])
+            read_value = self._read_from(addrs[0], size, inspect=inspect, events=events)
+        else:
+            read_value = DUMMY_SYMBOLIC_READ_VALUE  # it's a sentinel value and should never be touched
+
+            for a in addrs:
+                read_value = self.state.solver.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
+                                              read_value)
+                constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
-            load_constraint = [self.state.se.Or(*constraint_options)]
-        elif not self.state.se.symbolic(constraint_options[0]):
-            load_constraint = []
+            load_constraint = [ self.state.solver.Or(*constraint_options) ]
+        elif not self.state.solver.symbolic(constraint_options[0]):
+            load_constraint = [ ]
         else:
-            load_constraint = [constraint_options[0]]
+            load_constraint = [ constraint_options[0] ]
 
-        if condition is not None:
-            read_value = self.state.se.If(condition, read_value, fallback)
-            load_constraint = [
-                self.state.se.Or(
-                    self.state.se.And(
-                        condition,
-                        *load_constraint),
-                    self.state.se.Not(condition))]
+        if condition is not None and fallback is not None:
+            read_value = self.state.solver.If(condition, read_value, fallback)
+            load_constraint = [ self.state.solver.Or(self.state.solver.And(condition, *load_constraint), self.state.solver.Not(condition)) ]
 
         return addrs, read_value, load_constraint
 
-    def _find(
-            self,
-            start,
-            what,
-            max_search=None,
-            max_symbolic_bytes=None,
-            default=None,
-            step=1):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
+              disable_actions=False, inspect=True):
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
-        if isinstance(start, (int, long)):
-            start = self.state.se.BVV(start, self.state.arch.bits)
+        if isinstance(start, int):
+            start = self.state.solver.BVV(start, self.state.arch.bits)
 
-        constraints = []
+        constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
-        seek_size = len(what) // self.state.arch.byte_width
-        symbolic_what = self.state.se.symbolic(what)
+        seek_size = len(what)//self.state.arch.byte_width
+        symbolic_what = self.state.solver.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         chunk_start = 0
         chunk_size = max(0x100, seek_size + 0x80)
-        chunk = self.load(start, chunk_size, endness="Iend_BE")
+        chunk = self.load(start, chunk_size, endness="Iend_BE",
+                          disable_actions=disable_actions, inspect=inspect)
 
-        cases = []
-        match_indices = []
-        offsets_matched = []  # Only used in static mode
+        cases = [ ]
+        match_indices = [ ]
+        offsets_matched = [ ] # Only used in static mode
 
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
@@ -669,22 +610,16 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             if i - chunk_start > chunk_size - seek_size:
                 l.debug("loading new chunk")
                 chunk_start += chunk_size - seek_size + 1
-                chunk = self.load(start + chunk_start, chunk_size,
-                                  endness="Iend_BE", ret_on_segv=True)
+                chunk = self.load(start+chunk_start, chunk_size,
+                                  endness="Iend_BE", ret_on_segv=True,
+                                  disable_actions=disable_actions, inspect=inspect)
 
-            chunk_off = i - chunk_start
-            b = chunk[chunk_size *
-                      self.state.arch.byte_width -
-                      chunk_off *
-                      self.state.arch.byte_width -
-                      1: chunk_size *
-                      self.state.arch.byte_width -
-                      chunk_off *
-                      self.state.arch.byte_width -
-                      seek_size *
-                      self.state.arch.byte_width]
-            cases.append([b == what, start + i])
-            match_indices.append(i)
+            chunk_off = i-chunk_start
+            b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
+            condition = b == what
+            if not self.state.solver.is_false(condition):
+                cases.append([b == what, claripy.BVV(i, len(start))])
+                match_indices.append(i)
 
             if self.state.mode == 'static':
                 si = b._model_vsa
@@ -701,15 +636,13 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                         if remaining_symbolic is not None:
                             remaining_symbolic -= 1
                 else:
-                    # Comparison with other types (like IfProxy or ValueSet) is
-                    # not supported
+                    # Comparison with other types (like IfProxy or ValueSet) is not supported
                     if remaining_symbolic is not None:
                         remaining_symbolic -= 1
 
             else:
                 # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what and self.state.se.eval(
-                        b) == self.state.se.eval(what):
+                if not b.symbolic and not symbolic_what and self.state.solver.eval(b) == self.state.solver.eval(what):
                     l.debug("... found concrete")
                     break
                 else:
@@ -717,43 +650,41 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                         remaining_symbolic -= 1
 
         if self.state.mode == 'static':
-            r = self.state.se.ESI(self.state.arch.bits)
+            r = self.state.solver.ESI(self.state.arch.bits)
             for off in offsets_matched:
                 r = r.union(off)
 
-            constraints = []
+            constraints = [ ]
             return r, constraints, match_indices
 
         else:
             if default is None:
                 l.debug("... no default specified")
                 default = 0
-                constraints += [self.state.se.Or(*[c for c, _ in cases])]
+                constraints += [ self.state.solver.Or(*[ c for c,_ in cases]) ]
 
             #l.debug("running ite_cases %s, %s", cases, default)
-            r = self.state.se.ite_cases(cases, default)
+            r = self.state.solver.ite_cases(cases, default - start) + start
             return r, constraints, match_indices
 
     def __contains__(self, dst):
-        if isinstance(dst, (int, long)):
+        if isinstance(dst, int):
             addr = dst
-        elif self.state.se.symbolic(dst):
-            l.warning(
-                "Currently unable to do SimMemory.__contains__ on symbolic variables.")
+        elif self.state.solver.symbolic(dst):
+            l.warning("Currently unable to do SimMemory.__contains__ on symbolic variables.")
             return False
         else:
-            addr = self.state.se.eval(dst)
+            addr = self.state.solver.eval(dst)
         return addr in self.mem
 
     def was_written_to(self, dst):
-        if isinstance(dst, (int, long)):
+        if isinstance(dst, int):
             addr = dst
-        elif self.state.se.symbolic(dst):
-            l.warning(
-                "Currently unable to do SimMemory.was_written_to on symbolic variables.")
+        elif self.state.solver.symbolic(dst):
+            l.warning("Currently unable to do SimMemory.was_written_to on symbolic variables.")
             return False
         else:
-            addr = self.state.se.eval(dst)
+            addr = self.state.solver.eval(dst)
         return self.mem.contains_no_backer(addr)
 
     #
@@ -764,7 +695,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         l.debug("Doing a store...")
         req._adjust_condition(self.state)
 
-        max_bytes = req.data.length // self.state.arch.byte_width
+        max_bytes = req.data.length//self.state.arch.byte_width
 
         if req.size is None:
             req.size = max_bytes
@@ -777,21 +708,15 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                 self.state.add_constraints(req.size == new_size)
                 req.size = new_size
 
-        if self.state.solver.symbolic(
-                req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+        if self.state.solver.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return req
 
-        if not self.state.solver.symbolic(
-                req.size) and self.state.solver.eval(
-                req.size) > req.data.length // self.state.arch.byte_width:
-            raise SimMemoryError(
-                "Not enough data for requested storage size (size: {}, data: {})".format(
-                    req.size, req.data))
+        if not self.state.solver.symbolic(req.size) and self.state.solver.eval(req.size) > req.data.length//self.state.arch.byte_width:
+            raise SimMemoryError("Not enough data for requested storage size (size: {}, data: {})".format(req.size, req.data))
 
         if self.state.solver.symbolic(req.size):
-            self.state.add_constraints(
-                self.state.solver.ULE(
-                    req.size, max_bytes))
+            self.state.add_constraints(self.state.solver.ULE(req.size, max_bytes))
+
 
         #
         # First, resolve the addresses
@@ -806,8 +731,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                 raise
 
         if type(req.addr) not in (int, long) and req.addr.symbolic:
-            conditional_constraint = self.state.solver.Or(
-                *[req.addr == a for a in req.actual_addresses])
+            conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
             if (conditional_constraint.symbolic or  # if the constraint is symbolic
                     conditional_constraint.is_false()):  # if it makes the state go unsat
                 req.constraints.append(conditional_constraint)
@@ -815,63 +739,39 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         #
         # Prepare memory objects
         #
-        # If we have only one address to write to we handle it as concrete,
-        # disregarding symbolic or not
+        # If we have only one address to write to we handle it as concrete, disregarding symbolic or not
         is_size_symbolic = self.state.solver.symbolic(req.size)
         is_addr_symbolic = self.state.solver.symbolic(req.addr)
         if not is_size_symbolic and len(req.actual_addresses) == 1:
-            store_list = self._store_fully_concrete(
-                req.actual_addresses[0], req.size, req.data, req.endness, req.condition)
+            store_list = self._store_fully_concrete(req.actual_addresses[0], req.size, req.data, req.endness, req.condition)
         elif not is_addr_symbolic:
-            store_list = self._store_symbolic_size(
-                req.addr, req.size, req.data, req.endness, req.condition)
+            store_list = self._store_symbolic_size(req.addr, req.size, req.data, req.endness, req.condition)
         elif not is_size_symbolic:
-            store_list = self._store_symbolic_addr(
-                req.addr,
-                req.actual_addresses,
-                req.size,
-                req.data,
-                req.endness,
-                req.condition)
+            store_list = self._store_symbolic_addr(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
         else:
-            store_list = self._store_fully_symbolic(
-                req.addr,
-                req.actual_addresses,
-                req.size,
-                req.data,
-                req.endness,
-                req.condition)
+            store_list = self._store_fully_symbolic(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
 
         #
         # store it!!!
         #
         req.stored_values = []
-        if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or (
-                self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
+        if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
             for store_item in store_list:
-                store_item['value'] = self.state.solver.simplify(
-                    store_item['value'])
+                store_item['value'] = self.state.solver.simplify(store_item['value'])
 
-                if req.endness == "Iend_LE" or (
-                        req.endness is None and self.endness == "Iend_LE"):
+                if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
                     store_item['value'] = store_item['value'].reversed
 
                 req.stored_values.append(store_item['value'])
-                self._insert_memory_object(
-                    store_item['value'],
-                    store_item['addr'],
-                    store_item['size'])
+                self._insert_memory_object(store_item['value'], store_item['addr'], store_item['size'])
         else:
             for store_item in store_list:
-                if req.endness == "Iend_LE" or (
-                        req.endness is None and self.endness == "Iend_LE"):
+                if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
                     store_item['value'] = store_item['value'].reversed
 
                 req.stored_values.append(store_item['value'])
-                self._insert_memory_object(
-                    store_item['value'],
-                    store_item['addr'],
-                    store_item['size'])
+                self._insert_memory_object(store_item['value'], store_item['addr'], store_item['size'])
 
         l.debug("... done")
         req.completed = True
@@ -880,111 +780,77 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
     def _insert_memory_object(self, value, address, size):
         value.make_uuid()
         if self.category == 'mem':
-            self.state.scratch.dirty_addrs.update(
-                range(address, address + size))
-        mo = SimMemoryObject(
-            value,
-            address,
-            length=size,
-            byte_width=self.state.arch.byte_width)
+            self.state.scratch.dirty_addrs.update(range(address, address+size))
+        mo = SimMemoryObject(value, address, length=size, byte_width=self.state.arch.byte_width)
         self.mem.store_memory_object(mo)
 
     def _store_fully_concrete(self, address, size, data, endness, condition):
         if type(size) not in (int, long):
             size = self.state.solver.eval(size)
-        if size < data.length // self.state.arch.byte_width:
-            data = data[size * self.state.arch.byte_width - 1:]
+        if size < data.length//self.state.arch.byte_width:
+            data = data[len(data)-1:len(data)-size*self.state.arch.byte_width:]
         if condition is not None:
             try:
                 original_value = self._read_from(address, size)
             except Exception as ex:
                 raise ex
 
-            if endness == "Iend_LE" or (
-                    endness is None and self.endness == "Iend_LE"):
+            if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
                 original_value = original_value.reversed
-            conditional_value = self.state.solver.If(
-                condition, data, original_value)
+            conditional_value = self.state.solver.If(condition, data, original_value)
         else:
             conditional_value = data
 
-        return [dict(value=conditional_value, addr=address, size=size)]
+        return [ dict(value=conditional_value, addr=address, size=size) ]
+
 
     def _store_symbolic_size(self, address, size, data, endness, condition):
         address = self.state.solver.eval(address)
-        max_bytes = data.length // self.state.arch.byte_width
-        original_value = self._read_from(address, max_bytes)
-        if endness == "Iend_LE" or (
-                endness is None and self.endness == "Iend_LE"):
+        max_bytes = data.length//self.state.arch.byte_width
+        original_value =  self._read_from(address, max_bytes)
+        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
             original_value = original_value.reversed
+
 
         befores = original_value.chop(bits=self.state.arch.byte_width)
         afters = data.chop(bits=self.state.arch.byte_width)
-        stored_value = self.state.se.Concat(*[
+        stored_value = self.state.solver.Concat(*[
             self.state.solver.If(self.state.solver.UGT(size, i), a, b)
             for i, (a, b) in enumerate(zip(afters, befores))
         ])
 
-        conditional_value = self.state.solver.If(
-            condition,
-            stored_value,
-            original_value) if condition is not None else stored_value
+        conditional_value = self.state.solver.If(condition, stored_value, original_value) if condition is not None else stored_value
 
-        return [dict(value=conditional_value, addr=address, size=max_bytes)]
+        return [ dict(value=conditional_value, addr=address, size=max_bytes) ]
 
-    def _store_symbolic_addr(
-            self,
-            address,
-            addresses,
-            size,
-            data,
-            endness,
-            condition):
+    def _store_symbolic_addr(self, address,  addresses, size, data, endness, condition):
         size = self.state.solver.eval(size)
         segments = self._get_segments(addresses, size)
 
         if condition is None:
             condition = claripy.BoolV(True)
 
-        original_values = [
-            self._read_from(
-                segment['start'],
-                segment['size']) for segment in segments]
-        if endness == "Iend_LE" or (
-                endness is None and self.endness == "Iend_LE"):
-            original_values = [ov.reversed for ov in original_values]
+        original_values = [ self._read_from(segment['start'], segment['size']) for segment in segments ]
+        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+            original_values = [ ov.reversed  for ov in original_values ]
 
         stored_values = []
-        for segment, original_value in zip(segments, original_values):
+        for segment, original_value  in zip(segments, original_values):
             conditional_value = original_value
 
             for opt in segment['options']:
 
-                if endness == "Iend_LE" or (
-                        endness is None and self.endness == "Iend_LE"):
-                    high = ((opt['idx'] + segment['size'])
-                            * self.state.arch.byte_width) - 1
-                    low = opt['idx'] * self.state.arch.byte_width
+                if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+                    high = ((opt['idx']+segment['size']) * self.state.arch.byte_width)-1
+                    low = opt['idx']*self.state.arch.byte_width
                 else:
-                    high = len(data) - 1 - \
-                        (opt['idx'] * self.state.arch.byte_width)
-                    low = len(
-                        data) - ((opt['idx'] + segment['size']) * self.state.arch.byte_width)
+                    high = len(data) - 1 - (opt['idx']*self.state.arch.byte_width)
+                    low = len(data) - ((opt['idx']+segment['size']) *self.state.arch.byte_width)
 
                 data_slice = data[high:low]
-                conditional_value = self.state.solver.If(
-                    self.state.solver.And(
-                        address == segment['start'] -
-                        opt['idx'],
-                        condition),
-                    data_slice,
-                    conditional_value)
+                conditional_value = self.state.solver.If(self.state.solver.And(address == segment['start']-opt['idx'], condition), data_slice, conditional_value)
 
-            stored_values.append(
-                dict(
-                    value=conditional_value,
-                    addr=segment['start'],
-                    size=segment['size']))
+            stored_values.append(dict(value=conditional_value, addr=segment['start'], size=segment['size']))
 
         return stored_values
 
@@ -1004,10 +870,9 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         size_next = segment['size'] - size_prev
         assert size_prev != 0 and size_next != 0
         segments.pop(s_idx)
-        SimSymbolicDbgMemory._create_segment(
-            segment['start'], size_prev, segment['options'], s_idx, segments)
+        SimSymbolicDbgMemory._create_segment(segment['start'], size_prev, segment['options'], s_idx, segments)
         SimSymbolicDbgMemory._create_segment(addr, size_next, [{"idx": opt["idx"] + size_prev}
-                                                               for opt in segment['options']], s_idx + 1, segments)
+                                                            for opt in segment['options']], s_idx + 1, segments)
         return s_idx + 1
 
     @staticmethod
@@ -1020,8 +885,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
     @staticmethod
     def _get_segment_index(addr, segments):
         for i, segment in enumerate(segments):
-            if segment['start'] <= addr and addr < segment['start'] + \
-                    segment['size']:
+            if segment['start'] <= addr and addr < segment['start'] + segment['size']:
                 return i
 
         return -1
@@ -1033,44 +897,32 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         for addr in addrs:
             if addr < highest:
                 idx = SimSymbolicDbgMemory._split_segment(addr, segments)
-                SimSymbolicDbgMemory._create_segment(
-                    highest, addr + size - highest, [], len(segments), segments)
+                SimSymbolicDbgMemory._create_segment(highest, addr + size - highest, [], len(segments), segments)
                 SimSymbolicDbgMemory._add_segments_overlap(idx, addr, segments)
             else:
-                SimSymbolicDbgMemory._create_segment(
-                    addr, size, [{'idx': 0}], len(segments), segments)
+                SimSymbolicDbgMemory._create_segment(addr, size, [{'idx': 0}], len(segments), segments)
             highest = addr + size
         return segments
 
-    def _store_fully_symbolic(
-            self,
-            address,
-            addresses,
-            size,
-            data,
-            endness,
-            condition):
-        stored_values = []
+    def _store_fully_symbolic(self, address, addresses, size, data, endness, condition):
+        stored_values = [ ]
         byte_dict = defaultdict(list)
-        max_bytes = data.length // self.state.arch.byte_width
+        max_bytes = data.length//self.state.arch.byte_width
 
         if condition is None:
             condition = claripy.BoolV(True)
 
         # chop data into byte-chunks
         original_values = [self._read_from(a, max_bytes) for a in addresses]
-        if endness == "Iend_LE" or (
-                endness is None and self.endness == "Iend_LE"):
-            original_values = [ov.reversed for ov in original_values]
+        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+            original_values = [ ov.reversed  for ov in original_values ]
         data_bytes = data.chop(bits=self.state.arch.byte_width)
 
         for a, fv in zip(addresses, original_values):
             original_bytes = fv.chop(self.state.arch.byte_width)
-            for index, (d_byte, o_byte) in enumerate(
-                    zip(data_bytes, original_bytes)):
-                # create a dict of all all possible values for a certain
-                # address
-                byte_dict[a + index].append((a, index, d_byte, o_byte))
+            for index, (d_byte, o_byte) in enumerate(zip(data_bytes, original_bytes)):
+                # create a dict of all all possible values for a certain address
+                byte_dict[a+index].append((a, index, d_byte, o_byte))
 
         for byte_addr in sorted(byte_dict.keys()):
             write_list = byte_dict[byte_addr]
@@ -1079,14 +931,9 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             conditional_value = write_list[0][3]
             for a, index, d_byte, o_byte in write_list:
                 # create the ast for each byte
-                conditional_value = self.state.solver.If(self.state.se.And(
-                    address == a, size > index, condition), d_byte, conditional_value)
+                conditional_value = self.state.solver.If(self.state.solver.And(address == a, size > index, condition), d_byte, conditional_value)
 
-            stored_values.append(
-                dict(
-                    value=conditional_value,
-                    addr=byte_addr,
-                    size=1))
+            stored_values.append(dict(value=conditional_value, addr=byte_addr, size=1))
 
         return stored_values
 
@@ -1098,11 +945,10 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         size = req.size
         endness = req.endness
 
-        req.stored_values = []
+        req.stored_values = [ ]
 
         if options.ABSTRACT_MEMORY not in self.state.options:
-            raise SimMemoryError(
-                'store_with_merge is not supported without abstract memory.')
+            raise SimMemoryError('store_with_merge is not supported without abstract memory.')
 
         l.debug("Doing a store with merging...")
 
@@ -1121,8 +967,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
         for addr in addrs:
             # First we load old values
-            old_val = self._read_from(
-                addr, length // self.state.arch.byte_width)
+            old_val = self._read_from(addr, length // self.state.arch.byte_width)
             assert isinstance(old_val, claripy.Bits)
 
             # FIXME: This is a big hack
@@ -1133,13 +978,11 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
             def can_be_reversed(o):
                 om = o._model_vsa
-                if isinstance(
-                        om, claripy.vsa.StridedInterval) and om.is_integer:
+                if isinstance(om, claripy.vsa.StridedInterval) and om.is_integer:
                     return True
                 return False
 
-            if endness == 'Iend_LE':
-                cnt = cnt.reversed
+            if endness == 'Iend_LE': cnt = cnt.reversed
 
             reverse_it = False
             if is_reversed(cnt):
@@ -1150,9 +993,8 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            if isinstance(old_val, (int, long, claripy.bv.BVV)):
-                merged_val = self.state.se.SI(
-                    bits=len(old_val), to_conv=old_val)
+            if isinstance(old_val, (int, claripy.bv.BVV)):
+                merged_val = self.state.solver.SI(bits=len(old_val), to_conv=old_val)
             else:
                 merged_val = old_val
             merged_val = merged_val.union(cnt)
@@ -1167,21 +1009,14 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         req.completed = True
 
         # TODO: revisit the following lines
-        req.constraints = []
+        req.constraints = [ ]
 
         return req
 
-    def get_unconstrained_bytes(
-            self,
-            name,
-            bits,
-            source=None,
-            key=None,
-            inspect=True,
-            events=True,
-            **kwargs):
+    def get_unconstrained_bytes(self, name, bits, source=None, key=None, inspect=True, events=True, **kwargs):
         """
         Get some consecutive unconstrained bytes.
+
         :param name: Name of the unconstrained variable
         :param bits: Size of the unconstrained variable
         :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic
@@ -1192,32 +1027,22 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         if (self.category == 'mem' and
                 options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options):
             # CGC binaries zero-fill the memory for any allocated region
-            # Reference:
-            # (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
-            return self.state.se.BVV(0, bits)
+            # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
+            return self.state.solver.BVV(0, bits)
         elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
             return self.state._special_memory_filler(name, bits, self.state)
         else:
             if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                if source is not None and type(source) in (int, long):
+                if source is not None and type(source) is int:
                     alloc_depth = self.state.uc_manager.get_alloc_depth(source)
                     kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
-            r = self.state.se.Unconstrained(
-                name, bits, key=key, inspect=inspect, events=events, **kwargs)
+            r = self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events, **kwargs)
             return r
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr, inspect=True, events=True):
-        unconstrained_byte = self.get_unconstrained_bytes(
-            "%s_unconstrain_%#x" %
-            (self.id,
-             addr),
-            self.state.arch.byte_width,
-            inspect=inspect,
-            events=events,
-            key=(
-                'manual_unconstrain',
-                addr))
+        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
+                                                          events=events, key=('manual_unconstrain', addr))
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
@@ -1242,12 +1067,10 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
 
             merged_val = to_merge[0][0]
 
-            if should_reverse:
-                merged_val = merged_val.reversed
+            if should_reverse: merged_val = merged_val.reversed
 
-            for tm, _ in to_merge[1:]:
-                if should_reverse:
-                    tm = tm.reversed
+            for tm,_ in to_merge[1:]:
+                if should_reverse: tm = tm.reversed
 
                 if self._is_uninitialized(tm):
                     continue
@@ -1260,26 +1083,13 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
                     merged_val = merged_val.union(tm)
                     l.info("... Merged to %s", merged_val)
 
-            if should_reverse:
-                merged_val = merged_val.reversed
+            if should_reverse: merged_val = merged_val.reversed
         else:
-            merged_val = self.state.se.BVV(
-                0, merged_size * self.state.arch.byte_width)
-            for tm, fv in to_merge:
-                merged_val = self.state.se.If(fv, tm, merged_val)
+            merged_val = self.state.solver.BVV(0, merged_size*self.state.arch.byte_width)
+            for tm,fv in to_merge:
+                merged_val = self.state.solver.If(fv, tm, merged_val)
 
         return merged_val
-
-    def concrete_parts(self):
-        """
-        Return a dict containing the concrete values in memory.
-        """
-        d = {}
-        for k, v in self.mem.iteritems():
-            if not self.state.se.symbolic(v):
-                d[k] = self.state.se.simplify(v)
-
-        return d
 
     def dbg_print(self, indent=0):
         """
@@ -1287,7 +1097,7 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         """
         lst = []
         more_data = False
-        for i, addr in enumerate(self.mem.iterkeys()):
+        for i, addr in enumerate(self.mem.keys()):
             lst.append(addr)
             if i >= 20:
                 more_data = True
@@ -1297,42 +1107,23 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
             data = self.mem[addr]
             if isinstance(data, SimMemoryObject):
                 memobj = data
-                print "%s%xh: (%s)[%d]" % (
-                    " " * indent, addr, memobj, addr - memobj.base)
+                print("%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base))
             else:
-                print "%s%xh: <default data>" % (" " * indent, addr)
+                print("%s%xh: <default data>" % (" " * indent, addr))
         if more_data:
-            print "%s..." % (" " * indent)
+            print("%s..." % (" " * indent))
 
-    def _copy_contents(
-            self,
-            dst,
-            src,
-            size,
-            condition=None,
-            src_memory=None,
-            dst_memory=None,
-            inspect=True,
-            disable_actions=False):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+                      disable_actions=False):
         src_memory = self if src_memory is None else src_memory
         dst_memory = self if dst_memory is None else dst_memory
 
-        _, max_size = self._resolve_size_range(size)
+        _,max_size = self._resolve_size_range(size)
         if max_size == 0:
-            return None, []
+            return None, [ ]
 
-        data = src_memory.load(
-            src,
-            max_size,
-            inspect=inspect,
-            disable_actions=disable_actions)
-        dst_memory.store(
-            dst,
-            data,
-            size=size,
-            condition=condition,
-            inspect=inspect,
-            disable_actions=disable_actions)
+        data = src_memory.load(src, max_size, inspect=inspect, disable_actions=disable_actions)
+        dst_memory.store(dst, data, size=size, condition=condition, inspect=inspect, disable_actions=disable_actions)
         return data
 
     #
@@ -1409,10 +1200,8 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         :return:            AST representing the permissions on the page
         """
         out = self.mem.permissions(addr, permissions)
-        # if unicorn is in play and we've marked a page writable, it must be
-        # uncached
-        if permissions is not None and self.state.solver.is_true(
-                permissions & 2 == 2):
+        # if unicorn is in play and we've marked a page writable, it must be uncached
+        if permissions is not None and self.state.solver.is_true(permissions & 2 == 2):
             if self.state.has_plugin('unicorn'):
                 self.state.unicorn.uncache_page(addr)
         return out
@@ -1425,8 +1214,8 @@ class SimSymbolicDbgMemory(SimMemory):  # pylint:disable=abstract-method
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
         :param init_zero: Initialize page with zeros
         """
-        return self.mem.map_region(
-            addr, length, permissions, init_zero=init_zero)
+        l.info("Mapping [%#x, %#x] as %s", addr, addr + length - 1, permissions)
+        return self.mem.map_region(addr, length, permissions, init_zero=init_zero)
 
     def unmap_region(self, addr, length):
         """

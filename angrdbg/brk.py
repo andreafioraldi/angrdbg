@@ -1,6 +1,6 @@
 import claripy
 
-from context import get_debugger
+from .context import get_debugger
 
 
 def get_dbg_brk_linux64():
@@ -12,7 +12,7 @@ def get_dbg_brk_linux64():
 
     debugger = get_debugger()
 
-    code = '\x0f\x05'  # syscall
+    code = b'\x0f\x05'  # syscall
 
     rax = debugger.get_reg("rax")
     rdi = debugger.get_reg("rdi")
@@ -56,7 +56,7 @@ def get_dbg_brk_linux32():
 
     debugger = get_debugger()
 
-    code = '\xcd\x80'  # int 0x80
+    code = b'\xcd\x80'  # int 0x80
 
     eax = debugger.get_reg("eax")
     ebx = debugger.get_reg("ebx")

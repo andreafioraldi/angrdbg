@@ -1,18 +1,25 @@
 import angr
 
-from abstract_debugger import Debugger
+from .abstract_debugger import Debugger
 
 project = None
 debugger = Debugger()
 
+try:
+    long
+    _MAIN_OPTS=lambda debugger: { 'custom_base_addr': debugger.image_base() }
+except:
+    long = int
+    _MAIN_OPTS=lambda debugger: { 'base_addr': debugger.image_base() , 'force_rebase': True}
+
 def load_project():
     global project
     if project == None:
-        print " >> creating angr project..."
+        print (" >> creating angr project...")
         project = angr.Project(debugger.input_file(),
-                                main_opts={ 'custom_base_addr': debugger.image_base() },
+                                main_opts=_MAIN_OPTS(debugger),
                                 load_options={ "auto_load_libs": False })
-        print " >> done."
+        print (" >> done.")
     return project
 
 SIMPROCS_FROM_CLE = 0

@@ -1,9 +1,16 @@
-from memory import SimSymbolicDbgMemory
-from context import load_project, get_memory_type, set_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
-from brk import get_linux_brk
-from got_builder import *
+from .memory import SimSymbolicDbgMemory
+from .context import load_project, get_memory_type, set_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
+from .brk import get_linux_brk
+from .got_builder import *
 
 import claripy
+
+try:
+    long
+    bytes_type = str
+except:
+    long = int
+    bytes_type = bytes
 
 
 def get_registers():
@@ -21,10 +28,10 @@ def get_registers():
     
     return regs
 
-def StateShot(regs={}, sync_brk=True, from_dump=False, **kwargs):
+def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
     debugger = get_debugger()
 
-    if not from_dump:
+    if not check_dbg:
         if not debugger.is_active():
             raise RuntimeError(
                 "The debugger must be active and suspended before calling StateShot")
@@ -43,13 +50,14 @@ def StateShot(regs={}, sync_brk=True, from_dump=False, **kwargs):
 
     for reg in sorted(project.arch.registers,
                       key=lambda x: project.arch.registers.get(x)[1]):
-        if reg in ("sp", "bp", "ip"):
+        if reg in ("sp", "bp", "ip", "pc"):
             continue
         try:
             if reg in regs:
                 setattr(state.regs, reg, regs[reg])
             else:
                 setattr(state.regs, reg, debugger.get_reg(reg))
+            #print(reg, getattr(state.regs, reg), debugger.get_reg(reg))
         except BaseException:
             pass
 
@@ -69,7 +77,7 @@ def StateShot(regs={}, sync_brk=True, from_dump=False, **kwargs):
             state = build_bind_now_got(project, state)
 
     debugger.after_stateshot(state)
-
+    
     return state
 
 
@@ -154,10 +162,10 @@ class StateManager(object):
                     self.debugger.set_reg(key, r)
                 else:
                     r = found_state.solver.eval(
-                        self.symbolics[key][0], cast_to=str)
+                        self.symbolics[key][0], cast_to=bytes_type)
                     self.debugger.put_bytes(key, r)
             except Exception as ee:
-                print " >> failed to write %s to debugger" % key
+                print (" >> failed to write %s to debugger" % key)
                 #print ee
 
     def concretize(self, found_state):
@@ -172,10 +180,10 @@ class StateManager(object):
                     ret[key] = r
                 else:
                     r = found_state.solver.eval(
-                        self.symbolics[key][0], cast_to=str)
+                        self.symbolics[key][0], cast_to=bytes_type)
                     ret[key] = r
             except Exception as ee:
-                print " >> failed to concretize %s" % key
+                print (" >> failed to concretize %s" % key)
                 #print ee
         return ret
 
@@ -184,4 +192,4 @@ class StateManager(object):
             k = key
             if isinstance(key, int) or isinstance(key, long):
                 k = "0x%x" % key
-            print k, " ==>", self.symbolics[key]
+            print ("%s ==> %s" %(str(k), str(self.symbolics[key])))

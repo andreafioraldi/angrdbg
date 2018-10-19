@@ -1,4 +1,10 @@
-from context import get_debugger
+from .context import get_debugger
+
+#py2 and 3 support
+try:
+    xrange
+except NameError:
+    xrange = range
 
 '''
 def get_other_symbols_addrs(proj):
@@ -18,10 +24,10 @@ def build_cle_got(proj, state):
     try:
         got_start, got_end = debugger.get_got()
     except BaseException:
-        print "angrdbg: cannot find .got.plt section"
+        print ("angrdbg: cannot find .got.plt section")
         return state
 
-    entry_len = proj.arch.bits / 8
+    entry_len = proj.arch.bits // 8
 
     got_start += 3 * entry_len  # skip first 3 entries
 
@@ -56,16 +62,16 @@ def build_mixed_got(proj, state):
     try:
         got_start, got_end = debugger.get_got()
     except BaseException:
-        print "angrdbg: cannot find .got.plt section"
+        print ("angrdbg: cannot find .got.plt section")
         return state
 
     try:
         plt_start, plt_end = debugger.get_plt()
     except BaseException:
-        print "angrdbg: cannot find .plt section"
+        print ("angrdbg: cannot find .plt section")
         return state
 
-    entry_len = proj.arch.bits / 8
+    entry_len = proj.arch.bits // 8
     get_mem = debugger.get_dword if entry_len == 4 else debugger.get_qword
 
     got_start += 3 * entry_len  # skip first 3 entries
@@ -115,16 +121,16 @@ def build_bind_now_got(proj, state):
     try:
         got_start, got_end = debugger.get_got()
     except BaseException:
-        print "angrdbg: cannot find .got.plt section"
+        print ("angrdbg: cannot find .got.plt section")
         return state
 
     try:
         plt_start, plt_end = debugger.get_plt()
     except BaseException:
-        print "angrdbg: cannot find .plt section"
+        print ("angrdbg: cannot find .plt section")
         return state
 
-    entry_len = proj.arch.bits / 8
+    entry_len = proj.arch.bits // 8
     get_mem = debugger.get_dword if entry_len == 4 else debugger.get_qword
 
     got_start += 3 * entry_len  # skip first 3 entries
