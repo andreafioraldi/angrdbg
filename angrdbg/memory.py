@@ -11,13 +11,14 @@ from angr.storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from angr.storage.memory_object import SimMemoryObject
 from angr.sim_state_options import SimStateOptions
 
-try:
-    long
-    # py2
-    from .page_7 import SimDbgMemory
-except:
+import sys
+if sys.version_info >= (3, 0):
     long = int
     from .page_8 import SimDbgMemory
+else:
+    bytes = str
+    from .page_7 import SimDbgMemory
+
 
 DEFAULT_MAX_SEARCH = 8
 

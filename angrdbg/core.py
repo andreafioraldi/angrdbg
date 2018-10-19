@@ -5,12 +5,11 @@ from .got_builder import *
 
 import claripy
 
-try:
-    long
-    bytes_type = str
-except:
+import sys
+if sys.version_info >= (3, 0):
     long = int
-    bytes_type = bytes
+else:
+    bytes = str
 
 
 def get_registers():
@@ -162,7 +161,7 @@ class StateManager(object):
                     self.debugger.set_reg(key, r)
                 else:
                     r = found_state.solver.eval(
-                        self.symbolics[key][0], cast_to=bytes_type)
+                        self.symbolics[key][0], cast_to=bytes)
                     self.debugger.put_bytes(key, r)
             except Exception as ee:
                 print (" >> failed to write %s to debugger" % key)
@@ -180,7 +179,7 @@ class StateManager(object):
                     ret[key] = r
                 else:
                     r = found_state.solver.eval(
-                        self.symbolics[key][0], cast_to=bytes_type)
+                        self.symbolics[key][0], cast_to=bytes)
                     ret[key] = r
             except Exception as ee:
                 print (" >> failed to concretize %s" % key)

@@ -2,15 +2,17 @@ import angr
 
 from .abstract_debugger import Debugger
 
+import sys
+if sys.version_info >= (3, 0):
+    long = int
+    _MAIN_OPTS=lambda debugger: { 'base_addr': debugger.image_base() , 'force_rebase': True}
+else:
+    _MAIN_OPTS=lambda debugger: { 'custom_base_addr': debugger.image_base() }
+
+
 project = None
 debugger = Debugger()
 
-try:
-    long
-    _MAIN_OPTS=lambda debugger: { 'custom_base_addr': debugger.image_base() }
-except:
-    long = int
-    _MAIN_OPTS=lambda debugger: { 'base_addr': debugger.image_base() , 'force_rebase': True}
 
 def load_project():
     global project
