@@ -1,5 +1,9 @@
 from .context import get_debugger
 
+import logging
+
+l = logging.getLogger("angrdbg.got_builder")
+
 #py2 and 3 support
 try:
     xrange
@@ -24,7 +28,7 @@ def build_cle_got(proj, state):
     try:
         got_start, got_end = debugger.get_got()
     except BaseException:
-        print ("angrdbg: cannot find .got.plt section")
+        l.warning("cannot find .got.plt section, build_cle_got failed")
         return state
 
     entry_len = proj.arch.bits // 8
@@ -62,13 +66,13 @@ def build_mixed_got(proj, state):
     try:
         got_start, got_end = debugger.get_got()
     except BaseException:
-        print ("angrdbg: cannot find .got.plt section")
+        l.warning("cannot find .got.plt section, build_mixed_got failed")
         return state
 
     try:
         plt_start, plt_end = debugger.get_plt()
     except BaseException:
-        print ("angrdbg: cannot find .plt section")
+        l.warning("cannot find .plt section, build_mixed_got failed")
         return state
 
     entry_len = proj.arch.bits // 8
@@ -121,13 +125,13 @@ def build_bind_now_got(proj, state):
     try:
         got_start, got_end = debugger.get_got()
     except BaseException:
-        print ("angrdbg: cannot find .got.plt section")
+        l.warning("cannot find .got.plt section, build_bind_now_got failed")
         return state
 
     try:
         plt_start, plt_end = debugger.get_plt()
     except BaseException:
-        print ("angrdbg: cannot find .plt section")
+        l.warning("cannot find .plt section, build_bind_now_got failed")
         return state
 
     entry_len = proj.arch.bits // 8

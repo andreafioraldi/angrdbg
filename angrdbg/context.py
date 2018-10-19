@@ -1,4 +1,7 @@
 import angr
+import logging
+
+l = logging.getLogger("angrdbg.context")
 
 from .abstract_debugger import Debugger
 
@@ -17,11 +20,11 @@ debugger = Debugger()
 def load_project():
     global project
     if project == None:
-        print (" >> creating angr project...")
+        l.info("creating angr project...")
         project = angr.Project(debugger.input_file(),
                                 main_opts=_MAIN_OPTS(debugger),
                                 load_options={ "auto_load_libs": False })
-        print (" >> done.")
+        l.info("angr project created.")
     return project
 
 SIMPROCS_FROM_CLE = 0

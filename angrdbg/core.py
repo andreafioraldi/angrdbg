@@ -3,7 +3,11 @@ from .context import load_project, get_memory_type, set_memory_type, get_debugge
 from .brk import get_linux_brk
 from .got_builder import *
 
+import angr
 import claripy
+
+import logging
+l = logging.getLogger("angrdbg.core")
 
 import sys
 if sys.version_info >= (3, 0):
@@ -63,7 +67,10 @@ def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
     if project.simos.name == "Linux":
         # inject code to get brk if we are on linux x86/x86_64
         if sync_brk and project.arch.name in ("AMD64", "X86"):
-            state.posix.set_brk(get_linux_brk(project.arch.bits))
+            try:
+                state.posix.set_brk(get_linux_brk(project.arch.bits))
+            except angr.errors.SimMemoryError:
+                l.warning("failed to sychronize brk")
 
         if get_memory_type() == SIMPROCS_FROM_CLE:
             # insert simprocs when possible or resolve the symbol
@@ -164,7 +171,7 @@ class StateManager(object):
                         self.symbolics[key][0], cast_to=bytes)
                     self.debugger.put_bytes(key, r)
             except Exception as ee:
-                print (" >> failed to write %s to debugger" % key)
+                l.warning(" >> failed to write %s to debugger" % key)
                 #print ee
 
     def concretize(self, found_state):
@@ -182,7 +189,7 @@ class StateManager(object):
                         self.symbolics[key][0], cast_to=bytes)
                     ret[key] = r
             except Exception as ee:
-                print (" >> failed to concretize %s" % key)
+                l.warning(" >> failed to concretize %s" % key)
                 #print ee
         return ret
 
