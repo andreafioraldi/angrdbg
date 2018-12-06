@@ -2,6 +2,7 @@ from .memory import SimSymbolicDbgMemory
 from .context import load_project, get_memory_type, set_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
 from .brk import get_linux_brk
 from .got_builder import *
+from .idata_builder import *
 
 import angr
 import claripy
@@ -14,6 +15,10 @@ if sys.version_info >= (3, 0):
     long = int
 else:
     bytes = str
+
+
+def get_logger():
+    return logging.getLogger("angrdbg")
 
 
 def get_registers():
@@ -81,7 +86,15 @@ def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
         elif get_memory_type() == GET_ALL_DISCARD_CLE:
             # angr must not execute loader code so all symbols must be resolved
             state = build_bind_now_got(project, state)
-
+    
+    elif project.simos.name == "Win32":
+        if get_memory_type() == SIMPROCS_FROM_CLE:
+            # insert simprocs when possible or resolve the symbol
+            state = build_mixed_idata(project, state)
+        elif get_memory_type() == ONLY_GOT_FROM_CLE:
+            # load the entire idata from cle with stubs
+            state = build_cle_idata(project, state)
+    
     debugger.after_stateshot(state)
     
     return state

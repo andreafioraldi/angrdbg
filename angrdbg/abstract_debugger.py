@@ -99,6 +99,9 @@ class Debugger(object):
 
     def get_plt(self):  # return tuple(start_addr, end_addr)
         raise NotImplementedError()
+    
+    def get_idata(self):  # return tuple(start_addr, end_addr)
+        raise NotImplementedError()
 
     # -------------------------------------
     def resolve_name(self, name):  # return None on fail

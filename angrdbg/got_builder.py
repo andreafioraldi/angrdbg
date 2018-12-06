@@ -106,7 +106,8 @@ def build_mixed_got(proj, state):
                     ea = debugger.resolve_name(name)
                     if ea is not None:
                         setattr(state.mem[a], "uint%d_t" % proj.arch.bits, ea)
-    
+            else:
+                setattr(state.mem[a], "uint%d_t" % proj.arch.bits, state_val)
     
     
     '''
