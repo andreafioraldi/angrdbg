@@ -7,8 +7,11 @@ l = logging.getLogger("angrdbg.got_builder")
 #py2 and 3 support
 try:
     xrange
+    import itertools
+    def range(start, stop, step):
+        return iter(itertools.count(start, step).next, stop)
 except NameError:
-    xrange = range
+    pass
 
 '''
 def get_other_symbols_addrs(proj):
@@ -37,7 +40,7 @@ def build_cle_got(proj, state):
 
     '''
     print "## angr got - before ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
@@ -52,7 +55,7 @@ def build_cle_got(proj, state):
 
     '''
     print "## angr got - final ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
@@ -82,14 +85,14 @@ def build_mixed_got(proj, state):
 
     '''
     print "## angr got - before ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
 
     empty_state = proj.factory.blank_state()
 
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         state_val = empty_state.solver.eval(
             getattr(
                 empty_state.mem[a],
@@ -112,7 +115,7 @@ def build_mixed_got(proj, state):
     
     '''
     print "## angr got - final ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
@@ -142,14 +145,14 @@ def build_bind_now_got(proj, state):
 
     '''
     print "## angr got - before ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
 
     empty_state = proj.factory.blank_state()
 
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         state_val = empty_state.solver.eval(
             getattr(
                 empty_state.mem[a],
@@ -168,7 +171,7 @@ def build_bind_now_got(proj, state):
     
     '''
     print "## angr got - final ##"
-    for a in xrange(got_start, got_end, entry_len):
+    for a in range(got_start, got_end, entry_len):
         print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
     print
     '''
