@@ -36,6 +36,10 @@ A wrapper around angr to simplify the symbolic values creation and to write the 
 
 note: memory values are the same that are returned by `state.mem[addr]`
 
+##### Managing the Project
+
+`load_project` and `reload_project` are used to get or lazily create a project based on the current debugger state.
+
 #### Memory type
 
 The memory type defines how angrdbg get the memory from the debugger and from the cle backer. Use `get_memory_type` to know what the active one.
