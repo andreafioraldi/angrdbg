@@ -7,8 +7,11 @@ l = logging.getLogger("angrdbg.idata_builder")
 #py2 and 3 support
 try:
     xrange
+    import itertools
+    def range(start, stop, step):
+        return iter(itertools.count(start, step).next, stop)
 except NameError:
-    xrange = range
+    pass
 
 
 def build_cle_idata(proj, state):
@@ -47,7 +50,7 @@ def build_mixed_idata(proj, state):
 
     empty_state = proj.factory.blank_state()
 
-    for a in xrange(idata_start, idata_end, entry_len):
+    for a in range(idata_start, idata_end, entry_len):
         state_val = empty_state.solver.eval(
             getattr(
                 empty_state.mem[a],
