@@ -2,10 +2,23 @@
 
 Abstract library to generate angr states from a debugger state
 
+Works with both angr 7 and 8.
+
 ## Install
 
 ```
 pip install angrdbg
+```
+
+### Windows
+
+Before installing angrdbg you must install Visual C++ Redistributable Packages for Visual Studio 2013.
+
+Then type in the command prompt:
+
+```
+py -m pip install capstone-windows
+py -m pip install angrdbg
 ```
 
 ## Usage
