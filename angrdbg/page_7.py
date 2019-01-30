@@ -1,3 +1,10 @@
+########################################################
+# Author: Andrea Fioraldi <andreafioraldi@gmail.com>   #
+# License: BSD 2-Clause                                #
+# Original Author: UCSB guyz (ShellPhish mainly)       #
+# Original code from https://github.com/angr/angr      #
+########################################################
+
 import cooldict
 import claripy
 import cffi

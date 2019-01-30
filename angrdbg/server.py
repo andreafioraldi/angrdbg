@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+######################################################
+# Author: Andrea Fioraldi <andreafioraldi@gmail.com> #
+# License: BSD 2-Clause                              #
+######################################################
+
 """
 classic rpyc server running a SlaveService + angrdbg + IPython shell
 usage:
