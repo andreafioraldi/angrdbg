@@ -17,15 +17,9 @@ import claripy
 from angr.storage.memory import SimMemory, DUMMY_SYMBOLIC_READ_VALUE
 from angr.storage.memory_object import SimMemoryObject
 from angr.sim_state_options import SimStateOptions
+from angr.misc.ux import once
 
-import sys
-if sys.version_info >= (3, 0):
-    long = int
-    from .page_8 import SimDbgMemory
-else:
-    bytes = str
-    from .page_7 import SimDbgMemory
-
+from .page_8 import SimDbgMemory
 
 DEFAULT_MAX_SEARCH = 8
 
@@ -463,17 +457,30 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
                 eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
-        if (all_missing and
-                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options
-                ):
-            if self.category == 'reg':
-                # try to get a register name
-                reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
-                l.warning("Register %s has an unspecified value; "
-                          "Generating an unconstrained value of %d bytes.", reg_str, num_bytes)
-            elif self.category == 'mem':
-                l.warning("Memory address %#x has an unspecified value; "
-                          "Generating an unconstrained value of %d bytes.", addr, num_bytes)
+        if all_missing:
+            is_mem = self.category == 'mem' and \
+                    options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
+                    options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+            is_reg = self.category == 'reg' and \
+                    options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and \
+                    options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+            if is_mem or is_reg:
+                if once('mem_fill_warning'):
+                    l.warning("The program is accessing memory or registers with an unspecified value. "
+                        "This could indicate unwanted behavior.")
+                    l.warning("angr will cope with this by generating an unconstrained symbolic variable and continuing. "
+                        "You can resolve this by:")
+                    l.warning("1) setting a value to the initial state")
+                    l.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                        "to make unknown regions hold null")
+                    l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY_REGISTERS}, "
+                        "to suppress these messages.")
+                if is_mem:
+                    l.warning("Filling memory at %#x with %d unconstrained bytes", addr, num_bytes)
+                else:
+                    reg_str = self.state.arch.translate_register_name(addr, size=num_bytes)
+                    l.warning("Filling register %s with %d unconstrained bytes", reg_str, num_bytes)
+
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
             all_missing = [ a.reversed for a in all_missing ]
         elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
@@ -585,7 +592,7 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
         return addrs, read_value, load_constraint
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1,
-              disable_actions=False, inspect=True):
+              disable_actions=False, inspect=True, chunk_size=None):
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
@@ -596,16 +603,22 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)//self.state.arch.byte_width
         symbolic_what = self.state.solver.symbolic(what)
+
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         chunk_start = 0
-        chunk_size = max(0x100, seek_size + 0x80)
+        if chunk_size is None:
+            chunk_size = max(0x100, seek_size + 0x80)
+
         chunk = self.load(start, chunk_size, endness="Iend_BE",
                           disable_actions=disable_actions, inspect=inspect)
 
         cases = [ ]
         match_indices = [ ]
         offsets_matched = [ ] # Only used in static mode
+        byte_width = self.state.arch.byte_width
+        no_singlevalue_opt = options.SYMBOLIC_MEMORY_NO_SINGLEVALUE_OPTIMIZATIONS in self.state.options
+        cond_prefix = [ ]
 
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
@@ -623,11 +636,17 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
                                   disable_actions=disable_actions, inspect=inspect)
 
             chunk_off = i-chunk_start
-            b = chunk[chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - 1 : chunk_size*self.state.arch.byte_width - chunk_off*self.state.arch.byte_width - seek_size*self.state.arch.byte_width]
+            b = chunk[chunk_size*byte_width - chunk_off*byte_width - 1 : chunk_size*byte_width - chunk_off*byte_width - seek_size*byte_width]
             condition = b == what
             if not self.state.solver.is_false(condition):
-                cases.append([b == what, claripy.BVV(i, len(start))])
+                if no_singlevalue_opt and cond_prefix:
+                    condition = claripy.And(*(cond_prefix + [condition]))
+                cases.append([condition, claripy.BVV(i, len(start))])
                 match_indices.append(i)
+
+            if b.symbolic and no_singlevalue_opt:
+                # in tracing mode, we need to make sure that all previous bytes are not equal to what
+                cond_prefix.append(b != what)
 
             if self.state.mode == 'static':
                 si = b._model_vsa
@@ -738,7 +757,7 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        if type(req.addr) not in (int, long) and req.addr.symbolic:
+        if type(req.addr) is not int and req.addr.symbolic:
             conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
             if (conditional_constraint.symbolic or  # if the constraint is symbolic
                     conditional_constraint.is_false()):  # if it makes the state go unsat
@@ -786,14 +805,13 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
         return req
 
     def _insert_memory_object(self, value, address, size):
-        value.make_uuid()
         if self.category == 'mem':
             self.state.scratch.dirty_addrs.update(range(address, address+size))
         mo = SimMemoryObject(value, address, length=size, byte_width=self.state.arch.byte_width)
         self.mem.store_memory_object(mo)
 
     def _store_fully_concrete(self, address, size, data, endness, condition):
-        if type(size) not in (int, long):
+        if type(size) is not int:
             size = self.state.solver.eval(size)
         if size < data.length//self.state.arch.byte_width:
             data = data[len(data)-1:len(data)-size*self.state.arch.byte_width:]
@@ -862,6 +880,9 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
 
         return stored_values
 
+    def flush_pages(self,whitelist):
+        self.mem.flush_pages(whitelist)
+
     @staticmethod
     def _create_segment(addr, size, s_options, idx, segments):
         segment = dict(start=addr, size=size, options=s_options)
@@ -893,7 +914,7 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
     @staticmethod
     def _get_segment_index(addr, segments):
         for i, segment in enumerate(segments):
-            if segment['start'] <= addr and addr < segment['start'] + segment['size']:
+            if segment['start'] <= addr < segment['start'] + segment['size']:
                 return i
 
         return -1
@@ -1032,10 +1053,9 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
         :return: The generated variable
         """
 
-        if (self.category == 'mem' and
-                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options):
-            # CGC binaries zero-fill the memory for any allocated region
-            # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
+        if self.category == 'mem' and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
+            return self.state.solver.BVV(0, bits)
+        elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
             return self.state.solver.BVV(0, bits)
         elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
             return self.state._special_memory_filler(name, bits, self.state)
@@ -1135,7 +1155,7 @@ class SimSymbolicDbgMemory(SimMemory): #pylint:disable=abstract-method
         return data
 
     #
-    # Things that are actually handled by SimDbgMemory
+    # Things that are actually handled by SimPagedMemory
     #
 
     def changed_bytes(self, other):

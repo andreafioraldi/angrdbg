@@ -108,7 +108,7 @@ class WeirdServer(Server):  # n1 threaded n2 forked
         try:
             pid, dummy = os.waitpid(self.proc, 0)  # os.WNOHANG)
         except OSError as ee:
-            print ee
+            print( ee )
 
 
 class AngrDbgServer(cli.Application):

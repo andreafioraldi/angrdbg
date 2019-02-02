@@ -41,7 +41,7 @@ def build_cle_idata(proj, state):
     return state
 
 
-def build_mixed_idata(proj, state):
+def build_mixed_idata(proj, state, concrete_imports=[]):
     debugger = get_debugger()
 
     try:
@@ -62,7 +62,7 @@ def build_mixed_idata(proj, state):
                 "uint%d_t" %
                 proj.arch.bits).resolved)
         if state_val in proj._sim_procedures:
-            if proj._sim_procedures[state_val].is_stub:  # real simprocs or not?
+            if proj._sim_procedures[state_val].is_stub or proj._sim_procedures[state_val].display_name in concrete_imports:
                 dbg_val = get_mem(a)
                 setattr(state.mem[a], "uint%d_t" % proj.arch.bits, dbg_val)
             else:

@@ -43,13 +43,6 @@ def build_cle_got(proj, state):
 
     got_start += 3 * entry_len  # skip first 3 entries
 
-    '''
-    print "## angr got - before ##"
-    for a in range(got_start, got_end, entry_len):
-        print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
-    print
-    '''
-
     empty_state = proj.factory.blank_state()
     state.memory.store(
         got_start,
@@ -58,42 +51,34 @@ def build_cle_got(proj, state):
             got_end -
             got_start))
 
-    '''
-    print "## angr got - final ##"
-    for a in range(got_start, got_end, entry_len):
-        print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
-    print
-    '''
-
     return state
 
 
-def build_mixed_got(proj, state):
+def build_mixed_got(proj, state, concrete_imports=[], got=None, plt=None):
     debugger = get_debugger()
 
-    try:
-        got_start, got_end = debugger.get_got()
-    except BaseException:
-        l.warning("cannot find .got.plt section, build_mixed_got failed")
-        return state
-
-    try:
-        plt_start, plt_end = debugger.get_plt()
-    except BaseException:
-        l.warning("cannot find .plt section, build_mixed_got failed")
-        return state
-
+    if got is None:
+        try:
+            got_start, got_end = debugger.get_got()
+        except BaseException:
+            l.warning("cannot find .got.plt section, build_mixed_got failed")
+            return state
+    else:
+        got_start, got_end = got
+    
+    if plt is None:
+        try:
+            plt_start, plt_end = debugger.get_plt()
+        except BaseException:
+            l.warning("cannot find .plt section, build_mixed_got failed")
+            return state
+    else:
+        plt_start, plt_end = plt
+    
     entry_len = proj.arch.bits // 8
     get_mem = debugger.get_dword if entry_len == 4 else debugger.get_qword
 
     got_start += 3 * entry_len  # skip first 3 entries
-
-    '''
-    print "## angr got - before ##"
-    for a in range(got_start, got_end, entry_len):
-        print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
-    print
-    '''
 
     empty_state = proj.factory.blank_state()
 
@@ -104,7 +89,7 @@ def build_mixed_got(proj, state):
                 "uint%d_t" %
                 proj.arch.bits).resolved)
         if state_val in proj._sim_procedures:
-            if proj._sim_procedures[state_val].is_stub:  # real simprocs or not?
+            if proj._sim_procedures[state_val].is_stub or proj._sim_procedures[state_val].display_name in concrete_imports:
                 dbg_val = get_mem(a)
                 name = proj._sim_procedures[state_val].display_name
 
@@ -116,14 +101,6 @@ def build_mixed_got(proj, state):
                         setattr(state.mem[a], "uint%d_t" % proj.arch.bits, ea)
             else:
                 setattr(state.mem[a], "uint%d_t" % proj.arch.bits, state_val)
-    
-    
-    '''
-    print "## angr got - final ##"
-    for a in range(got_start, got_end, entry_len):
-        print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
-    print
-    '''
 
     return state
 
@@ -147,14 +124,7 @@ def build_bind_now_got(proj, state):
     get_mem = debugger.get_dword if entry_len == 4 else debugger.get_qword
 
     got_start += 3 * entry_len  # skip first 3 entries
-
-    '''
-    print "## angr got - before ##"
-    for a in range(got_start, got_end, entry_len):
-        print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
-    print
-    '''
-
+    
     empty_state = proj.factory.blank_state()
 
     for a in range(got_start, got_end, entry_len):
@@ -173,12 +143,4 @@ def build_bind_now_got(proj, state):
                 ea = debugger.resolve_name(name)
                 if ea is not None:
                     setattr(state.mem[a], "uint%d_t" % proj.arch.bits, ea)
-    
-    '''
-    print "## angr got - final ##"
-    for a in range(got_start, got_end, entry_len):
-        print "0x%x:  0x%x" % (a, state.solver.eval(getattr(state.mem[a], "uint%d_t" % proj.arch.bits).resolved))
-    print
-    '''
-
     return state

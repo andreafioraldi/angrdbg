@@ -3,23 +3,24 @@
 # License: BSD 2-Clause                              #
 ######################################################
 
-from .memory import SimSymbolicDbgMemory
 from .context import load_project, get_memory_type, set_memory_type, get_debugger, SIMPROCS_FROM_CLE, ONLY_GOT_FROM_CLE, GET_ALL_DISCARD_CLE
 from .brk import get_linux_brk
 from .got_builder import *
 from .idata_builder import *
+
+import sys
+if sys.version_info >= (3, 0):
+    long = int
+    from .memory_8 import SimSymbolicDbgMemory
+else:
+    bytes = str
+    from .memory_7 import SimSymbolicDbgMemory
 
 import angr
 import claripy
 
 import logging
 l = logging.getLogger("angrdbg.core")
-
-import sys
-if sys.version_info >= (3, 0):
-    long = int
-else:
-    bytes = str
 
 
 def get_logger():
@@ -41,7 +42,7 @@ def get_registers():
     
     return regs
 
-def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
+def StateShot(regs={}, sync_brk=True, check_dbg=False, concrete_imports=[], **kwargs):
     debugger = get_debugger()
 
     if not check_dbg:
@@ -84,7 +85,7 @@ def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
 
         if get_memory_type() == SIMPROCS_FROM_CLE:
             # insert simprocs when possible or resolve the symbol
-            state = build_mixed_got(project, state)
+            state = build_mixed_got(project, state, concrete_imports)
         elif get_memory_type() == ONLY_GOT_FROM_CLE:
             # load the entire got from cle with stubs
             state = build_cle_got(project, state)
@@ -95,7 +96,7 @@ def StateShot(regs={}, sync_brk=True, check_dbg=False, **kwargs):
     elif project.simos.name == "Win32":
         if get_memory_type() == SIMPROCS_FROM_CLE:
             # insert simprocs when possible or resolve the symbol
-            state = build_mixed_idata(project, state)
+            state = build_mixed_idata(project, state, concrete_imports)
         elif get_memory_type() == ONLY_GOT_FROM_CLE:
             # load the entire idata from cle with stubs
             state = build_cle_idata(project, state)
