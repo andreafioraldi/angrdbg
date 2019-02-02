@@ -54,26 +54,20 @@ def build_cle_got(proj, state):
     return state
 
 
-def build_mixed_got(proj, state, concrete_imports=[], got=None, plt=None):
+def build_mixed_got(proj, state, concrete_imports=[]):
     debugger = get_debugger()
 
-    if got is None:
-        try:
-            got_start, got_end = debugger.get_got()
-        except BaseException:
-            l.warning("cannot find .got.plt section, build_mixed_got failed")
-            return state
-    else:
-        got_start, got_end = got
+    try:
+        got_start, got_end = debugger.get_got()
+    except BaseException:
+        l.warning("cannot find .got.plt section, build_mixed_got failed")
+        return state
     
-    if plt is None:
-        try:
-            plt_start, plt_end = debugger.get_plt()
-        except BaseException:
-            l.warning("cannot find .plt section, build_mixed_got failed")
-            return state
-    else:
-        plt_start, plt_end = plt
+    try:
+        plt_start, plt_end = debugger.get_plt()
+    except BaseException:
+        l.warning("cannot find .plt section, build_mixed_got failed")
+        return state
     
     entry_len = proj.arch.bits // 8
     get_mem = debugger.get_dword if entry_len == 4 else debugger.get_qword
