@@ -22,21 +22,23 @@ project = None
 debugger = Debugger()
 
 
-def reload_project(input_file=None):
+def reload_project(input_file=None, **kwargs):
     global project
     l.info("creating angr project...")
     if input_file is None:
         input_file = debugger.input_file()
-    project = angr.Project(input_file,
-                            main_opts=_MAIN_OPTS(debugger),
-                            load_options={ "auto_load_libs": False })
+    kwargs["main_opts"] = kwargs.get("main_opts", {})
+    kwargs["main_opts"].update(_MAIN_OPTS(debugger))
+    kwargs["load_options"] = kwargs.get("load_options", {})
+    kwargs["load_options"]["auto_load_libs"] = False
+    project = angr.Project(input_file, **kwargs)
     l.info("angr project created.")
     return project
 
-def load_project(input_file=None):
+def load_project(input_file=None, **kwargs):
     global project
     if project == None:
-        return reload_project(input_file)
+        return reload_project(input_file, **kwargs)
     return project
 
 SIMPROCS_FROM_CLE = 0
