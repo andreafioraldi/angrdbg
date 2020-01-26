@@ -20,7 +20,7 @@ setup(
     download_url = 'https://github.com/andreafioraldi/angrdbg/archive/' + VER + '.tar.gz',
     package_dir={'angrdbg': 'angrdbg'},
     packages=['angrdbg'],
-    install_requires=['angr', 'rpyc', 'ipython'],
+    install_requires=['angr', 'cooldict', 'ipython', 'rpyc'],
     entry_points={
         'console_scripts': ['angrdbg_srv = angrdbg.server:main']
     },
