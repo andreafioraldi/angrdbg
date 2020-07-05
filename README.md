@@ -68,3 +68,18 @@ You can change the memory type with `set_memory_type`.
 + GDB -> [angrgdb](https://github.com/andreafioraldi/angrgdb)
 + IDA Pro debugger -> [IDAngr](https://github.com/andreafioraldi/IDAngr)
 + radare2 -> [r2angrdbg](https://github.com/andreafioraldi/r2angrdbg)
+
+## Cite
+
+Thesis [PDF](https://arxiv.org/pdf/2006.16601.pdf).
+
+Bibtex:
+```
+@misc{fioraldi2020symbolic,
+    title={Symbolic Execution and Debugging Synchronization},
+    author={Andrea Fioraldi},
+    year={2020},
+    eprint={2006.16601},
+    archivePrefix={arXiv},
+    primaryClass={cs.CR}
+}```
